@@ -973,3 +973,35 @@ After deploy: served `main.dart.js` hashes identical to the local build; `terrai
 Note `grep huluhilir-deselect terrain.html` returns 0 — the string is **constructed** as `'huluhilir-' + msg`, not written literally. Worth recording so a future check does not read that zero as a missing feature.
 
 ---
+
+## [Cycle freeze + terrain first paint]
+
+### The counter froze at (total − 1) / total — a client bug, not a server one
+
+Reported as "still 1/2" for two different blocks. The **server was already correct**; the display was not.
+
+`GET /diagnosis-cycles/current` filters `status == "in_progress"`, so it returns **null the instant a cycle completes**. The client did `_cycle = refreshed ?? _cycle`, kept its stale copy, and froze one short. An earlier verification of mine had *observed* that null and read it as "complete" — without ever checking what the UI does with it. Testing the server is not testing the feature.
+
+Two fixes, layered:
+
+1. **`POST /observations` now returns the cycle it just updated.** The state comes back on the response that changed it — no second round trip and nothing inferred. `/current` structurally cannot serve this purpose, because "the cycle that just finished" is exactly what it filters out.
+2. The client's re-fetch remains as a fallback for an older server, and there a null is treated as completion rather than as "keep the old number".
+
+Verified live on the exact reported scenario — two blocks, collar image and leaf image:
+
+| step | cycle in response |
+|---|---|
+| Block A, collar target | **1/2 in_progress** |
+| Block B, leaf target | **2/2 complete** |
+
+### Terrain showed a bare baseplate until you left and came back
+
+Only on web, and the cause was an announcement that never arrived. `terrain.html` signalled readiness with `FlutterBridge.postMessage('ready')` — and **`FlutterBridge` does not exist inside an iframe**. So on web nothing told the host the scene was alive; the host simply blind-retried the render payload eight times over ~2.8 s. A slow iframe missed every attempt, leaving the ground plane with no blocks until the farmer navigated away and back.
+
+The scene now announces on **both** transports via the shared `post()` helper: `FlutterBridge` gets `ready`, the parent window gets `huluhilir-ready`. The web embed pushes the payload on that signal. The retry loop stays as a backstop rather than as the mechanism.
+
+### Shipped and verified
+
+Backend `huluhilir-api-00041-5kh`. Served `main.dart.js` hashes identical to the local build (`e6f4c490…`). `terrain.html` on the CDN contains `post('ready')` and the web bundle listens for `huluhilir-ready`. APK carries `playVoiceLabel`, `TIADA TINDAKAN PERLU` and `Guna juga`.
+
+---
