@@ -1,6 +1,9 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import 'models.dart';
+import 'theme.dart';
 
 /// The signature visual (docs/PROJECT_SPEC.md §7): blocks laid out by
 /// `elevation_rank` (highest at the top), coloured by state, connected by
@@ -8,14 +11,24 @@ import 'models.dart';
 ///
 /// Layout is by RANK, not by geographic position -- this is a water-flow
 /// diagram, not a map. That is deliberate: rendering real coordinates would
-/// imply we hold land boundaries, and we explicitly never record those
+/// imply we hold land boundaries, which we explicitly never record
 /// (huluhilir-rules skill §4). Rank ordering is the only spatial claim the
 /// system actually makes.
-class TerrainCanvas extends StatelessWidget {
+///
+/// Design note: the visual language here targets a stylised topographic
+/// backdrop (terraced gradient) behind the rank/flow diagram, rather than a
+/// literal 3D isometric scene with modelled trees. A true 3D terrain render
+/// is a materially larger and riskier build (a 3D pipeline, lighting, asset
+/// modelling) than the rest of this app, and the rank/flow diagram underneath
+/// is the part that's actually load-bearing -- it's what compute_spread's
+/// output means. This keeps that correct and legible while matching the
+/// warm/organic colour language everywhere else.
+class TerrainCanvas extends StatefulWidget {
   final List<TerrainNode> nodes;
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
   final void Function(String blockId)? onTapBlock;
+  final Widget Function(String blockId)? profileBuilder;
 
   const TerrainCanvas({
     super.key,
@@ -23,18 +36,19 @@ class TerrainCanvas extends StatelessWidget {
     required this.edges,
     required this.labels,
     this.onTapBlock,
+    this.profileBuilder,
   });
 
   static Color stateColour(String state) {
     switch (state) {
       case BlockState.harmed:
-        return const Color(0xFFD32F2F);
+        return AppColors.stateHarmed;
       case BlockState.overrun:
-        return const Color(0xFF6A1B1A);
+        return AppColors.stateOverrun;
       case BlockState.alerted:
-        return const Color(0xFFF9A825);
+        return AppColors.stateAlerted;
       default:
-        return const Color(0xFF2E7D32);
+        return AppColors.stateProtected;
     }
   }
 
@@ -52,58 +66,110 @@ class TerrainCanvas extends StatelessWidget {
   }
 
   @override
+  State<TerrainCanvas> createState() => _TerrainCanvasState();
+}
+
+class _TerrainCanvasState extends State<TerrainCanvas> {
+  String? _openProfileBlockId;
+
+  @override
   Widget build(BuildContext context) {
-    if (nodes.isEmpty) {
-      return const SizedBox(
+    if (widget.nodes.isEmpty) {
+      return SizedBox(
         height: 200,
-        child: Center(child: Text('Tiada blok lagi')),
+        child: Center(child: Text('Tiada blok lagi', style: AppText.sans(color: AppColors.oliveLight))),
       );
     }
 
-    final sorted = [...nodes]..sort((a, b) => a.elevationRank.compareTo(b.elevationRank));
+    final sorted = [...widget.nodes]..sort((a, b) => a.elevationRank.compareTo(b.elevationRank));
     final positions = _layout(sorted);
 
     return LayoutBuilder(builder: (context, constraints) {
       final width = constraints.maxWidth;
-      final height = (sorted.length * 78.0).clamp(200.0, 520.0);
+      final height = (sorted.length * 78.0).clamp(220.0, 520.0);
 
-      return SizedBox(
-        height: height,
-        child: Stack(children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _FlowPainter(
-                positions: positions,
-                edges: edges,
-                canvasSize: Size(width, height),
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: SizedBox(
+          height: height,
+          child: Stack(children: [
+            // Stylised terraced backdrop: low ground (cool) to high ground
+            // (warm/green) -- evokes topography without claiming to be one.
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      AppColors.olive.withValues(alpha: 0.10),
+                      AppColors.terracotta.withValues(alpha: 0.06),
+                      const Color(0xFFDCE8EC),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-          for (final node in sorted)
-            Positioned(
-              left: positions[node.blockId]!.dx * width - 58,
-              top: positions[node.blockId]!.dy * height - 22,
-              child: _BlockChip(
-                label: labels[node.blockId] ?? node.blockId.substring(0, 4),
-                rank: node.elevationRank,
-                state: node.currentState,
-                onTap: onTapBlock == null ? null : () => onTapBlock!(node.blockId),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _FlowPainter(
+                  positions: positions,
+                  edges: widget.edges,
+                  canvasSize: Size(width, height),
+                ),
               ),
             ),
-        ]),
+            for (final node in sorted)
+              Positioned(
+                left: positions[node.blockId]!.dx * width - 58,
+                top: positions[node.blockId]!.dy * height - 22,
+                child: _BlockChip(
+                  label: widget.labels[node.blockId] ?? node.blockId.substring(0, 4),
+                  rank: node.elevationRank,
+                  state: node.currentState,
+                  onTap: () {
+                    widget.onTapBlock?.call(node.blockId);
+                    if (widget.profileBuilder != null) {
+                      setState(() => _openProfileBlockId = node.blockId);
+                    }
+                  },
+                ),
+              ),
+            Positioned(top: 12, left: 12, child: _LegendOverlay()),
+            if (_openProfileBlockId != null && widget.profileBuilder != null)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: _ProfileOverlay(
+                  onClose: () => setState(() => _openProfileBlockId = null),
+                  child: widget.profileBuilder!(_openProfileBlockId!),
+                ),
+              ),
+          ]),
+        ),
       );
     });
   }
 
   /// Normalised (0..1) positions. Rank drives the vertical axis; blocks
   /// sharing a rank band are fanned horizontally so edges stay readable.
+  ///
+  /// The topmost (highest-ranked) node is pinned to the right half: the
+  /// legend overlay always occupies the top-left corner, and centring rank 1
+  /// there (as a naive alternating fan does) overlaps its label.
   Map<String, Offset> _layout(List<TerrainNode> sorted) {
     final positions = <String, Offset>{};
     final n = sorted.length;
     for (var i = 0; i < n; i++) {
-      final y = n == 1 ? 0.5 : 0.10 + (0.80 * i / (n - 1));
-      // Alternate left/right of centre so arrows don't overlap vertically.
-      final x = 0.5 + (i.isEven ? -0.16 : 0.16) * (i == 0 || i == n - 1 ? 0.3 : 1.0);
+      final y = n == 1 ? 0.5 : 0.14 + (0.74 * i / (n - 1));
+      double x;
+      if (i == 0) {
+        x = 0.68;
+      } else if (i == n - 1) {
+        x = 0.5 - 0.16 * 0.3;
+      } else {
+        x = 0.5 + (i.isEven ? -0.16 : 0.16);
+      }
       positions[sorted[i].blockId] = Offset(x, y);
     }
     return positions;
@@ -116,12 +182,7 @@ class _BlockChip extends StatelessWidget {
   final String state;
   final VoidCallback? onTap;
 
-  const _BlockChip({
-    required this.label,
-    required this.rank,
-    required this.state,
-    this.onTap,
-  });
+  const _BlockChip({required this.label, required this.rank, required this.state, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -133,22 +194,123 @@ class _BlockChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: colour,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [BoxShadow(blurRadius: 4, color: Color(0x33000000), offset: Offset(0, 2))],
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: softShadow(tint: colour.withValues(alpha: 0.35)),
         ),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            style: AppText.sans(color: Colors.white, weight: FontWeight.w700, size: 13),
           ),
           Text(
             '#$rank · ${TerrainCanvas.stateLabelMs(state)}',
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
+            style: AppText.sans(color: Colors.white.withValues(alpha: 0.85), size: 10),
           ),
         ]),
       ),
+    );
+  }
+}
+
+/// Top-left blurred legend: state colours + the downhill-flow line convention.
+class _LegendOverlay extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.72),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.hairline),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            _legendRow(AppColors.stateHarmed, 'Terjejas'),
+            _legendRow(AppColors.stateAlerted, 'Berisiko'),
+            _legendRow(AppColors.stateProtected, 'Selamat'),
+            const SizedBox(height: 4),
+            Row(children: [
+              SizedBox(
+                width: 16,
+                child: CustomPaint(painter: _DashedLinePainter(color: AppColors.olive)),
+              ),
+              const SizedBox(width: 6),
+              Text('Aliran hiliran', style: AppText.sans(size: 10, color: AppColors.charcoal)),
+            ]),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _legendRow(Color color, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Row(children: [
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          const SizedBox(width: 6),
+          Text(label, style: AppText.sans(size: 10, color: AppColors.charcoal)),
+        ]),
+      );
+}
+
+class _DashedLinePainter extends CustomPainter {
+  final Color color;
+  _DashedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2;
+    const dash = 3.0, gap = 2.0;
+    var x = 0.0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, size.height / 2), Offset((x + dash).clamp(0, size.width), size.height / 2), paint);
+      x += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedLinePainter old) => old.color != color;
+}
+
+/// Block "profile" card shown on tap -- photo/state header plus whatever
+/// history content the caller supplies via profileBuilder.
+class _ProfileOverlay extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onClose;
+  const _ProfileOverlay({required this.child, required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 300,
+      constraints: const BoxConstraints(maxHeight: 420),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: softShadow(tint: const Color(0x33000000)),
+      ),
+      child: Stack(children: [
+        Padding(padding: const EdgeInsets.only(top: 8), child: child),
+        Positioned(
+          top: 4,
+          right: 4,
+          child: IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.85),
+              minimumSize: const Size(28, 28),
+            ),
+            onPressed: onClose,
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -175,7 +337,7 @@ class _FlowPainter extends CustomPainter {
       final paint = Paint()
         ..color = edge.barrier
             ? const Color(0x44607D8B)
-            : Color.lerp(const Color(0x332196F3), const Color(0xCC1565C0), edge.flowWeight)!
+            : Color.lerp(AppColors.olive.withValues(alpha: 0.25), AppColors.olive, edge.flowWeight)!
         ..strokeWidth = edge.barrier ? 1.2 : (1.5 + 3.0 * edge.flowWeight)
         ..style = PaintingStyle.stroke;
 

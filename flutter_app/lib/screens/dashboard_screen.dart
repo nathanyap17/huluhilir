@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../terrain_canvas.dart';
+import '../theme.dart';
 import 'diagnosis_screen.dart';
 
 /// docs/PROJECT_SPEC.md §7. Section order is deliberate and matches the spec:
@@ -28,54 +29,98 @@ class DashboardScreen extends ConsumerWidget {
     final cycle = ref.watch(currentCycleProvider(farm.farmId));
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(farm.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(dashboardProvider(farm.farmId)),
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: Column(children: [
+          _Header(
+            farmName: farm.name,
+            onRefresh: () => ref.invalidate(dashboardProvider(farm.farmId)),
+            onResetLongPress: () => ref.read(sessionProvider.notifier).reset(),
           ),
-        ],
-      ),
-      body: dashboard.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorPane(
-          message: '$e',
-          onRetry: () => ref.invalidate(dashboardProvider(farm.farmId)),
-        ),
-        data: (data) => RefreshIndicator(
-          onRefresh: () async => ref.invalidate(dashboardProvider(farm.farmId)),
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Resume prompt: on app open mid-cycle we land here, never drop
-              // straight into capture (docs/PROJECT_SPEC.md §7).
-              cycle.maybeWhen(
-                data: (c) => c == null
-                    ? const SizedBox.shrink()
-                    : _ResumeCard(cycle: c, farmId: farm.farmId),
-                orElse: () => const SizedBox.shrink(),
+          Expanded(
+            child: dashboard.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => _ErrorPane(
+                message: '$e',
+                onRetry: () => ref.invalidate(dashboardProvider(farm.farmId)),
               ),
-              _RainPulseCard(pulse: data.rainPulse),
-              const SizedBox(height: 12),
-              if (data.advisor != null) ...[
-                _AdvisorCard(advisor: data.advisor!, farmId: farm.farmId),
-                const SizedBox(height: 12),
-              ],
-              if (data.topAction != null) ...[
-                _PriorityActionCard(action: data.topAction!, blocks: data.blocks),
-                const SizedBox(height: 12),
-              ],
-              _TerrainCard(data: data),
-              const SizedBox(height: 12),
-              if (data.pendingNeighbourAlerts > 0)
-                _NeighbourConsentCard(count: data.pendingNeighbourAlerts),
-              const SizedBox(height: 80),
-            ],
+              data: (data) => RefreshIndicator(
+                onRefresh: () async => ref.invalidate(dashboardProvider(farm.farmId)),
+                child: ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    cycle.maybeWhen(
+                      data: (c) =>
+                          c == null ? const SizedBox.shrink() : _ResumeCard(cycle: c, farmId: farm.farmId),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+                    _RainPulseCard(pulse: data.rainPulse),
+                    const SizedBox(height: 24),
+                    if (data.advisor != null) ...[
+                      _AdvisorCard(advisor: data.advisor!, farmId: farm.farmId),
+                      const SizedBox(height: 24),
+                    ],
+                    if (data.topAction != null) ...[
+                      _MainActionCard(action: data.topAction!, blocks: data.blocks),
+                      const SizedBox(height: 24),
+                    ],
+                    _TerrainCard(data: data),
+                    const SizedBox(height: 24),
+                    if (data.pendingNeighbourAlerts > 0) _NeighbourConsentCard(count: data.pendingNeighbourAlerts),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ]),
+      ),
+      floatingActionButton: _FabColumn(farmId: farm.farmId),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String farmName;
+  final VoidCallback onRefresh;
+  final VoidCallback onResetLongPress;
+  const _Header({required this.farmName, required this.onRefresh, required this.onResetLongPress});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+      decoration: const BoxDecoration(
+        color: AppColors.cream,
+        border: Border(bottom: BorderSide(color: AppColors.hairline, width: 1)),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('HuluHilir',
+                style: AppText.serif(size: 34, weight: FontWeight.bold, color: AppColors.olive)),
+            const SizedBox(height: 4),
+            Text('Dari hulu ke hilir — sebelum penyakit sampai.',
+                style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.oliveLight)
+                    .copyWith(fontStyle: FontStyle.italic)),
+            const SizedBox(height: 2),
+            Text(farmName, style: AppText.sans(size: 12, color: AppColors.charcoal)),
+          ]),
+        ),
+        IconButton(onPressed: onRefresh, icon: const Icon(Icons.refresh, color: AppColors.olive)),
+        // Tetapan (settings). Long-press resets the farm -- deliberately
+        // hidden behind a long-press so a stray tap can never wipe a farm
+        // (docs/PROJECT_SPEC.md §7 "hide reset").
+        GestureDetector(
+          onLongPress: onResetLongPress,
+          child: IconButton(
+            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Tetapan — tekan lama untuk tetapkan semula ladang')),
+            ),
+            icon: const Icon(Icons.settings_outlined, color: AppColors.olive),
           ),
         ),
-      ),
-      floatingActionButton: _FabMenu(farmId: farm.farmId),
+      ]),
     );
   }
 }
@@ -86,36 +131,47 @@ class _RainPulseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFE3F2FD),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(children: [
-          const Icon(Icons.umbrella, size: 34, color: Color(0xFF1565C0)),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('DENYUT HUJAN',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-              const SizedBox(height: 4),
-              Text(
-                '${pulse.dayLabel} · ${pulse.rainfallMm.toStringAsFixed(0)} mm · '
-                '${pulse.daysAway == 0 ? "hari ini" : "${pulse.daysAway} hari lagi"}',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-              ),
-            ]),
-          ),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.hairline),
+        boxShadow: softShadow(),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.water_drop, size: 16, color: AppColors.oliveLight),
+          const SizedBox(width: 8),
+          Text('DENYUT HUJAN', style: AppText.eyebrow()),
+          const Spacer(),
           // Speech playback hook: every user-facing string carries a
           // speech_template_id (huluhilir-rules skill §8). Wired to audio in
           // Block E; the affordance exists here so the contract is visible.
           IconButton(
-            icon: const Icon(Icons.volume_up),
+            icon: const Icon(Icons.volume_up, color: AppColors.oliveLight),
             onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Suara: ${pulse.speechTemplateId ?? "-"} (Block E)')),
             ),
           ),
         ]),
-      ),
+        const SizedBox(height: 8),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text(pulse.rainfallMm.toStringAsFixed(0), style: AppText.serif(size: 48, weight: FontWeight.bold)),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text('mm', style: AppText.sans(size: 20, color: AppColors.charcoal)),
+          ),
+          const SizedBox(width: 16),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              '${pulse.dayLabel} · ${pulse.daysAway == 0 ? "hari ini" : "${pulse.daysAway} hari lagi"}',
+              style: AppText.sans(weight: FontWeight.w600, color: AppColors.olive),
+            ),
+          ),
+        ]),
+      ]),
     );
   }
 }
@@ -125,56 +181,82 @@ class _AdvisorCard extends ConsumerWidget {
   final String farmId;
   const _AdvisorCard({required this.advisor, required this.farmId});
 
-  Color get _tint {
+  bool get _isCall => advisor.urgency == 'high' || advisor.urgency == 'medium';
+
+  String get _badge {
     switch (advisor.urgency) {
       case 'high':
-        return const Color(0xFFFFF3E0);
       case 'medium':
-        return const Color(0xFFFFFDE7);
+        return 'AKTIF';
+      case 'low':
+        return 'STABIL';
       default:
-        return const Color(0xFFF1F8E9);
+        return 'OK';
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 'low'/'none' is the evidence-backed "no action needed" case -- an AI
-    // that tells you NOT to work today (docs/DATA_MODEL.md §18).
-    final isCall = advisor.urgency == 'high' || advisor.urgency == 'medium';
-
-    return Card(
-      color: _tint,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(isCall ? Icons.warning_amber : Icons.check_circle_outline,
-                color: isCall ? Colors.orange.shade800 : Colors.green.shade700),
-            const SizedBox(width: 10),
-            const Text('PENASIHAT',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          ]),
-          const SizedBox(height: 8),
-          Text(advisor.reasonMs, style: const TextStyle(fontSize: 16)),
-          if (isCall) ...[
-            const SizedBox(height: 12),
-            FilledButton(
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.olive,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        boxShadow: softShadow(tint: AppColors.olive.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(_isCall ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+              size: 16, color: Colors.white.withValues(alpha: 0.8)),
+          const SizedBox(width: 8),
+          Text('ADVISOR', style: AppText.eyebrow(color: Colors.white.withValues(alpha: 0.8))),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(AppRadius.chip),
+            ),
+            child: Text(_badge, style: AppText.sans(size: 10, weight: FontWeight.w700, color: Colors.white)),
+          ),
+        ]),
+        SizedBox(height: _isCall ? 16 : 8),
+        Text(
+          advisor.reasonMs,
+          style: AppText.serif(size: 18, color: Colors.white, height: 1.25),
+        ),
+        if (_isCall) ...[
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => DiagnosisScreen(farmId: farmId)),
               ),
-              child: const Text('MULA DIAGNOSIS'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.button)),
+                elevation: 0,
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('MULA DIAGNOSIS',
+                    style: AppText.sans(weight: FontWeight.w700, color: AppColors.olive)),
+                const SizedBox(width: 8),
+                const Icon(Icons.arrow_forward, size: 16, color: AppColors.olive),
+              ]),
             ),
-          ],
-        ]),
-      ),
+          ),
+        ],
+      ]),
     );
   }
 }
 
-class _PriorityActionCard extends StatelessWidget {
+class _MainActionCard extends StatelessWidget {
   final RecommendationModel action;
   final List<BlockModel> blocks;
-  const _PriorityActionCard({required this.action, required this.blocks});
+  const _MainActionCard({required this.action, required this.blocks});
 
   String get _blockLabel => blocks
       .firstWhere(
@@ -214,36 +296,35 @@ class _PriorityActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFE8F5E9),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('TINDAKAN UTAMA',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          const SizedBox(height: 8),
-          Text('$_actionMs — $_blockLabel',
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 6),
-          Text(action.reasonMs, style: const TextStyle(fontSize: 15)),
-          // The arbitration record made visible: this is the evidence the agent
-          // chose between conflicting model outputs (docs/DATA_MODEL.md §16).
-          if (action.deferCause != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade100,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text('↳ ditangguh: ${action.deferCause}',
-                  style: TextStyle(fontSize: 13, color: Colors.orange.shade900)),
-            ),
-          ],
-        ]),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.cardOffWhite,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.olive, width: 2),
+        boxShadow: softShadow(),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('TINDAKAN UTAMA', style: AppText.eyebrow(color: AppColors.olive)),
+        const SizedBox(height: 12),
+        Text('$_actionMs — $_blockLabel${_terminal(action.reasonMs)}',
+            style: AppText.serif(size: 20, weight: FontWeight.bold)),
+        if (action.deferCause != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            const Icon(Icons.arrow_forward, size: 16, color: AppColors.terracotta),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text('ditangguh: ${action.deferCause}',
+                  style: AppText.sans(size: 14, weight: FontWeight.w600, color: AppColors.terracotta)),
+            ),
+          ]),
+        ],
+      ]),
     );
   }
+
+  String _terminal(String reason) => reason.isEmpty ? '.' : '. $reason';
 }
 
 class _TerrainCard extends StatelessWidget {
@@ -254,57 +335,97 @@ class _TerrainCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final labels = {for (final b in data.blocks) b.blockId: b.label};
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 4),
-            child: Text('MODEL RISIKO TERRAIN',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          ),
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
-            child: Text('Anggaran sahaja — bukan ukuran lapangan.',
-                style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
-          ),
-          TerrainCanvas(
-            nodes: data.terrainNodes,
-            edges: data.terrainEdges,
-            labels: labels,
-            onTapBlock: (blockId) => _showBlockSheet(context, blockId, data),
-          ),
-        ]),
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.hairline),
+        boxShadow: softShadow(),
       ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('TERRAIN RISK MODEL', style: AppText.eyebrow()),
+        const SizedBox(height: 4),
+        Text('Anggaran sahaja — bukan ukuran lapangan.',
+            style: AppText.sans(size: 11, color: AppColors.oliveLight)
+                .copyWith(fontStyle: FontStyle.italic)),
+        const SizedBox(height: 20),
+        TerrainCanvas(
+          nodes: data.terrainNodes,
+          edges: data.terrainEdges,
+          labels: labels,
+          profileBuilder: (blockId) => _BlockProfile(
+            block: data.blocks.firstWhere((b) => b.blockId == blockId),
+            action: data.topAction?.blockId == blockId ? data.topAction : null,
+          ),
+        ),
+      ]),
     );
   }
+}
 
-  void _showBlockSheet(BuildContext context, String blockId, DashboardModel data) {
-    final block = data.blocks.firstWhere((b) => b.blockId == blockId);
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(block.label, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Chip(
-            label: Text(TerrainCanvas.stateLabelMs(block.currentState)),
-            backgroundColor: TerrainCanvas.stateColour(block.currentState).withValues(alpha: 0.15),
+/// The "profile overlay" content shown when a terrain chip is tapped: a
+/// header identifying the block/state, and whatever recommendation history
+/// is on hand. A full diagnosis timeline (docs/PROJECT_SPEC.md §7's "diagnosis
+/// history" list) needs a history endpoint that doesn't exist yet -- this
+/// shows the current state and, if there is one, the live top action for this
+/// block, rather than fabricating a longer history.
+class _BlockProfile extends StatelessWidget {
+  final BlockModel block;
+  final RecommendationModel? action;
+  const _BlockProfile({required this.block, this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final colour = TerrainCanvas.stateColour(block.currentState);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        height: 90,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [colour.withValues(alpha: 0.55), colour],
           ),
-          const SizedBox(height: 12),
-          Text('Kedudukan hulu-hilir: #${block.elevationRank}'),
-          Text('Saliran: ${block.drainage}'),
-          if (block.vineCount != null) Text('Bilangan pokok: ${block.vineCount}'),
-          if (block.voiceLabelUri != null)
-            TextButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Main rakaman suara'),
+        ),
+        child: Align(
+          alignment: Alignment.bottomLeft,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text(block.label,
+                style: AppText.sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
+            Text('#${block.elevationRank} · ${TerrainCanvas.stateLabelMs(block.currentState)}',
+                style: AppText.sans(size: 12, color: Colors.white.withValues(alpha: 0.9))),
+          ]),
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text('Saliran: ${block.drainage}', style: AppText.sans(size: 12)),
+          if (block.vineCount != null)
+            Text('Bilangan pokok: ${block.vineCount}', style: AppText.sans(size: 12)),
+          if (action != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.cardOffWhite,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('TINDAKAN DISYORKAN',
+                    style: AppText.sans(size: 9, weight: FontWeight.w700, color: AppColors.olive)),
+                const SizedBox(height: 4),
+                Text(action!.reasonMs, style: AppText.sans(size: 12)),
+              ]),
             ),
+          ],
         ]),
       ),
-    );
+    ]);
   }
 }
 
@@ -314,17 +435,27 @@ class _NeighbourConsentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFF3E5F5),
-      child: ListTile(
-        leading: const Icon(Icons.mail_outline),
-        title: Text('$count pesanan jiran menunggu'),
-        // Alerts are DRAFTED, never auto-sent: dispatch requires explicit
-        // farmer approval (huluhilir-rules skill §5).
-        subtitle: const Text('Perlu kelulusan anda sebelum dihantar'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {},
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.hairline),
       ),
+      child: Row(children: [
+        const Icon(Icons.mail_outline, color: AppColors.terracotta),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$count pesanan jiran menunggu', style: AppText.sans(weight: FontWeight.w600)),
+            // Alerts are DRAFTED, never auto-sent: dispatch requires explicit
+            // farmer approval (huluhilir-rules skill §5).
+            Text('Perlu kelulusan anda sebelum dihantar',
+                style: AppText.sans(size: 12, color: AppColors.oliveLight)),
+          ]),
+        ),
+        const Icon(Icons.chevron_right, color: AppColors.oliveLight),
+      ]),
     );
   }
 }
@@ -336,14 +467,28 @@ class _ResumeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      color: const Color(0xFFFFF8E1),
-      child: ListTile(
-        leading: const Icon(Icons.play_circle_outline),
-        title: Text('Sambung diagnosis (${cycle.blocksCaptured}/${cycle.blocksTotal} blok)'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => DiagnosisScreen(farmId: farmId)),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColors.terracotta, width: 1.5),
+        ),
+        child: InkWell(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => DiagnosisScreen(farmId: farmId)),
+          ),
+          child: Row(children: [
+            const Icon(Icons.play_circle_outline, color: AppColors.terracotta),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text('Sambung diagnosis (${cycle.blocksCaptured}/${cycle.blocksTotal} blok)',
+                  style: AppText.sans(weight: FontWeight.w600)),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.oliveLight),
+          ]),
         ),
       ),
     );
@@ -361,14 +506,12 @@ class _ErrorPane extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+          const Icon(Icons.cloud_off, size: 48, color: AppColors.oliveLight),
           const SizedBox(height: 12),
-          const Text('Tidak dapat sambung ke pelayan',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          Text('Tidak dapat sambung ke pelayan',
+              style: AppText.sans(size: 17, weight: FontWeight.w600)),
           const SizedBox(height: 6),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(message, textAlign: TextAlign.center, style: AppText.sans(size: 12, color: AppColors.oliveLight)),
           const SizedBox(height: 16),
           FilledButton(onPressed: onRetry, child: const Text('CUBA LAGI')),
         ]),
@@ -377,48 +520,52 @@ class _ErrorPane extends StatelessWidget {
   }
 }
 
-/// FAB: Diagnosis · Tanya · Tetapan.
-/// Reset is deliberately NOT here — it lives behind a long-press on Tetapan so
-/// a farmer cannot wipe their farm by mis-tapping (docs/PROJECT_SPEC.md §7).
-class _FabMenu extends ConsumerWidget {
+/// Two stacked circular FABs: a small "Tanya" chat button above a large
+/// camera/diagnosis button, matching the design spec's FAB column.
+///
+/// Reset lives behind a long-press on the header's settings icon instead of
+/// here -- overloading a FAB's long-press with an unrelated destructive
+/// action would be confusing, and a farmer cannot wipe their farm by
+/// mis-tapping either way (docs/PROJECT_SPEC.md §7 "hide reset").
+class _FabColumn extends ConsumerWidget {
   final String farmId;
-  const _FabMenu({required this.farmId});
+  const _FabColumn({required this.farmId});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FloatingActionButton(
-      onPressed: () => showModalBottomSheet(
-        context: context,
-        builder: (sheetContext) => SafeArea(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Diagnosis'),
-              onTap: () {
-                Navigator.pop(sheetContext);
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => DiagnosisScreen(farmId: farmId)),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.chat_bubble_outline),
-              title: const Text('Tanya'),
-              onTap: () => Navigator.pop(sheetContext),
-            ),
-            ListTile(
-              leading: const Icon(Icons.settings),
-              title: const Text('Tetapan'),
-              onLongPress: () {
-                Navigator.pop(sheetContext);
-                ref.read(sessionProvider.notifier).reset();
-              },
-              onTap: () => Navigator.pop(sheetContext),
-            ),
-          ]),
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.hairline),
+          boxShadow: softShadow(),
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.chat_bubble_outline, color: AppColors.olive, size: 20),
+          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tanya (RAG) — datang tidak lama lagi')),
+          ),
         ),
       ),
-      child: const Icon(Icons.auto_awesome),
-    );
+      const SizedBox(height: 16),
+      Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: AppColors.olive,
+          shape: BoxShape.circle,
+          boxShadow: softShadow(tint: AppColors.olive.withValues(alpha: 0.35)),
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.camera_alt_outlined, color: Colors.white),
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => DiagnosisScreen(farmId: farmId)),
+          ),
+        ),
+      ),
+    ]);
   }
 }

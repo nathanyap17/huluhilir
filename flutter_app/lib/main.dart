@@ -5,6 +5,7 @@ import 'providers.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/registration_screen.dart';
 import 'screens/walk_screen.dart';
+import 'theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: HuluHilirApp()));
@@ -20,16 +21,10 @@ class HuluHilirApp extends ConsumerWidget {
     return MaterialApp(
       title: 'HuluHilir',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        useMaterial3: true,
-        // Large touch targets and text: the user may be standing on a slope in
-        // sunlight, and literacy is not assumed (huluhilir-rules skill §8).
-        textTheme: const TextTheme(
-          bodyMedium: TextStyle(fontSize: 16),
-          titleMedium: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-      ),
+      // Large touch targets and text throughout: the user may be standing on
+      // a slope in sunlight, and literacy is not assumed (huluhilir-rules
+      // skill §8). See theme.dart for the full palette/type rationale.
+      theme: buildAppTheme(),
       home: _home(session),
     );
   }
