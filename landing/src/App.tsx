@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { animate, stagger, createScope, type Scope } from 'animejs';
+import { SlopeDiagram, ArbitrationDiagram } from './Diagrams';
 import {
   APP_URL,
   REPO_URL,
@@ -68,6 +69,25 @@ export default function App() {
         ease: 'inOut(2)',
       });
 
+      // Parallax on the hero figure only. A rAF-throttled scroll handler
+      // rather than a library: one transform on one element is not worth a
+      // dependency, and anything heavier would cost more on a low-spec phone
+      // than the effect is worth.
+      let ticking = false;
+      const onScroll = () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+          const y = window.scrollY;
+          document.querySelectorAll<HTMLElement>('[data-parallax]').forEach((el) => {
+            const rate = Number(el.dataset.parallax ?? '0.2');
+            el.style.transform = `translate3d(0, ${(y * rate).toFixed(1)}px, 0)`;
+          });
+          ticking = false;
+        });
+      };
+      window.addEventListener('scroll', onScroll, { passive: true });
+
       // Scroll reveals. IntersectionObserver rather than a scroll handler so
       // this stays cheap on a low-spec phone.
       const observer = new IntersectionObserver(
@@ -112,6 +132,7 @@ export default function App() {
 
       return () => {
         window.clearTimeout(failsafe);
+        window.removeEventListener('scroll', onScroll);
         observer.disconnect();
       };
     });
@@ -174,7 +195,7 @@ export default function App() {
               Live on Cloud Run + Vertex AI. Open the app and tap “Lihat ladang demo”.
             </p>
 
-            <div className="slope-figure" aria-hidden="true">
+            <div className="slope-figure" aria-hidden="true" data-parallax="0.16">
               {[0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
@@ -206,6 +227,9 @@ export default function App() {
                 highway. An infection upslope is a scheduled arrival below.
               </p>
             </div>
+            <div className="js-reveal" style={{ marginBottom: 34 }}>
+              <SlopeDiagram />
+            </div>
             <div className="stats">
               {STATS.map((s) => (
                 <div className="stat js-reveal" key={s.label}>
@@ -228,6 +252,9 @@ export default function App() {
                 Naïvely, these are four conflicting instructions. Spraying today would wash the
                 treatment off before it binds. The agent holds all four at once and sequences them.
               </p>
+            </div>
+            <div className="js-reveal" style={{ marginBottom: 30 }}>
+              <ArbitrationDiagram />
             </div>
             <div className="arb">
               <div>

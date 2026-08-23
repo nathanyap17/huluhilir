@@ -213,3 +213,33 @@ footer a:hover { color: var(--olive); }
   .js-reveal { opacity: 1 !important; transform: none !important; }
   html { scroll-behavior: auto; }
 }
+
+/* ---- diagrams -------------------------------------------------------- */
+
+.fig {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+/* Sticky section headings give the scroll a sense of progression without a
+   scroll-jacking library — the heading holds while its evidence scrolls past. */
+@media (min-width: 900px) {
+  .section-head.sticky {
+    position: sticky;
+    top: 88px;
+    z-index: 1;
+  }
+}
+
+/* Cards lift slightly as they enter, which reads as depth against the flat
+   cream ground without needing a real 3D transform. */
+.stat, .layer, .rule, .signal { will-change: transform, opacity; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Parallax is applied inline by JS; neutralise it rather than leaving an
+     element permanently offset for someone who asked for no motion. */
+  [data-parallax] { transform: none !important; }
+  .fig .flow-drop { display: none; }
+}

@@ -769,3 +769,20 @@ The translator is instructed to keep numbers, units and day names verbatim, to k
 Where `slot_vocabulary.text_iba` holds a native-speaker-verified term, that is still preferred over anything generated here.
 
 ---
+
+## [Landing] Scroll-triggered motion, parallax, and two diagrams that show the mechanism
+
+Two inline-SVG figures, each drawing the thing the prose beside it claims:
+
+- **SlopeDiagram** — terraced blocks with a droplet running the slope on a loop, following the *same* declared path the terrain is drawn along, so the motion depicts transport rather than moving a dot around decoratively. The upslope node is terracotta, the downslope ones olive: an infection above is a scheduled arrival below.
+- **ArbitrationDiagram** — four signal chips whose wires draw themselves toward a single verdict node. Drawn as convergence because that is what the root agent does; four bullet points would show the inputs and hide the only interesting part.
+
+Parallax on the hero figure is a rAF-throttled scroll handler rather than a library: one transform on one element is not worth a dependency, and anything heavier costs more on a low-spec phone than the effect is worth.
+
+### The failsafe lesson, applied before it bit again
+
+The diagrams were first written with `opacity="0"` baked into the SVG. **That is the same mistake already fixed once on `.js-reveal`**: content hidden in markup and revealed only by JS is permanently invisible if the animation never finishes — a throttled background tab, a JS error, an observer that never fires. It was caught here by checking computed opacity after load rather than assuming the build succeeding meant the page worked.
+
+Both figures now hide their own elements in JS immediately before animating, and each carries a 4-second `revealAll` backstop. Verified after deploy: `terrace`, `vine`, `sig` and `verdict-node` all resolve to opacity 1 and the wire dash offset to 0. `prefers-reduced-motion` skips the hide entirely and drops the looping droplet.
+
+---
