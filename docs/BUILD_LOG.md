@@ -936,3 +936,40 @@ It prints `collar_lesion` recall separately and says to read it before the macro
 **Until that is run against real labelled photographs, "effectively identifying six classes" is not a claim this project can make.**
 
 ---
+
+## [Peek interaction] Hover to open, release to close — and the card speaks
+
+Tap-to-open plus an X is gone. The block window is now a **peek**: it opens while the pointer is on a block and closes itself when the pointer leaves. There is no close button on the terrain card at all.
+
+### Touch has no hover, and the phone is the product
+
+A mouse-only interaction would have made the terrain unusable on the device farmers actually hold, so "hands off the screen" is expressed per input type:
+
+- **Mouse** — `pointermove` raycasts continuously; entering a pillar opens, leaving closes. Moving between pillars swaps without a close/open flicker, because `showBlock` returns early when the block is already shown (hover fires on nearly every frame).
+- **Touch** — press-and-hold peeks, release closes. A *moving* touch is explicitly ignored for hover: it is an OrbitControls camera drag, and treating it as hover flickered the card while orbiting.
+
+`pointerleave` and `pointercancel` both close, so a pointer that exits the canvas or is cancelled mid-gesture cannot strand the card open.
+
+The card is wrapped in `IgnorePointer`. On touch the finger is on the pillar rather than the card, and on a mouse the card must not swallow the pointer on its way back to the scene — either would leave the peek stuck open.
+
+### The trade-off, and the fix that came back from the team
+
+Flagged before building: during a touch peek the finger is pinned to the pillar, so the card's scrollable history and its voice-playback button are unreachable. On a mouse the pointer can travel onto the card, so they stay usable there — but a phone cannot do that.
+
+The answer, proposed by the team and implemented here: **the peek plays the block's recorded voice label by itself.** The farmer hears the block while looking at its history, and no longer needs to press anything. It is playback of stored audio — nothing transcribes it (huluhilir-rules §1), which is exactly why an Iban label works.
+
+Two details that matter:
+
+* Playback is **idempotent per block** (`_labelPlayingFor`), because a hover peek rebuilds continuously and would otherwise restart the audio every frame. It resets on `deselect` so the next peek at the same block replays.
+* The label uses a **separate `AudioPlayer`** from the diagnosis/TTS one, so starting a label cannot cut off advice being read aloud.
+* A label that will not play fails **silently**. An error dialog thrown over a peek the farmer is only glancing at would be worse than the missing audio.
+
+### Verified
+
+The state machine was exercised directly in a browser (screen-coordinate simulation was impossible — the test pane lays out at 0×0, so `camera.aspect` is NaN and projection cannot work): select shows the ring, a repeat select does **not** re-post, moving to another pillar swaps cleanly, hide clears the ring, and a repeat hide does not re-post.
+
+After deploy: served `main.dart.js` hashes identical to the local build; `terrain.html` on the CDN contains `pointermove`, `hideBlock`, the new hint text and `post('deselect')`; the web bundle listens for the literal `huluhilir-deselect`; the APK's AOT library contains `playVoiceLabel`.
+
+Note `grep huluhilir-deselect terrain.html` returns 0 — the string is **constructed** as `'huluhilir-' + msg`, not written literally. Worth recording so a future check does not read that zero as a missing feature.
+
+---

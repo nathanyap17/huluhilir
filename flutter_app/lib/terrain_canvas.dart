@@ -28,7 +28,7 @@ class TerrainCanvas extends StatefulWidget {
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
   final void Function(String blockId)? onTapBlock;
-  final Widget Function(String blockId, VoidCallback onClose)? profileBuilder;
+  final Widget Function(String blockId, VoidCallback? onClose)? profileBuilder;
 
   const TerrainCanvas({
     super.key,
@@ -292,22 +292,6 @@ class _DashedLinePainter extends CustomPainter {
 
 /// Block "profile" card shown on tap -- photo/state header plus whatever
 /// history content the caller supplies via profileBuilder.
-class _ProfileOverlay extends StatelessWidget {
-  final Widget child;
-  const _ProfileOverlay({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    // Positioning and sizing ONLY. This used to add its own white card and a
-    // second, smaller close button stacked over the one BlockProfileCard
-    // already draws -- two X's, with the wrapper's on top, so taps landed on
-    // whichever happened to win hit-testing. The card owns its own chrome.
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 320, maxHeight: 460),
-      child: child,
-    );
-  }
-}
 class _FlowPainter extends CustomPainter {
   final Map<String, Offset> positions;
   final List<FlowEdgeModel> edges;

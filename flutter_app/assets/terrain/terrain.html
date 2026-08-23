@@ -35,7 +35,7 @@
   <div class="row"><span class="dot" style="background:#5A5A40"></span>Selamat</div>
   <div class="row"><span class="flow"></span>Aliran hiliran</div>
 </div>
-<div id="hint">Cubit untuk zum · seret untuk putar</div>
+<div id="hint">Tahan blok untuk lihat · lepas untuk tutup</div>
 <!--
   Classic (non-module) Three.js r128 -- confirmed necessary on-device, see
   docs/BUILD_LOG.md "3D terrain viability spike". ES modules loaded via
@@ -88,7 +88,7 @@ const STATE_COLOUR = {
 let scene, camera, renderer, controls;
 let terrainGroup, pillarGroup, linesGroup, selectionRing;
 let pillarMeshes = []; // {mesh, blockId}
-let raycaster, pointerDownPos = null;
+let raycaster;
 let currentNodes = [];
 
 function init() {
@@ -144,6 +144,9 @@ function init() {
   raycaster = new THREE.Raycaster();
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
   renderer.domElement.addEventListener('pointerup', onPointerUp);
+  renderer.domElement.addEventListener('pointermove', onPointerMove);
+  renderer.domElement.addEventListener('pointerleave', onPointerLeave);
+  renderer.domElement.addEventListener('pointercancel', onPointerLeave);
   window.addEventListener('resize', onResize);
 
   animate();
@@ -408,51 +411,116 @@ function buildFlowLine(fromPos, toPos, weight, barrier) {
 }
 
 // ---- selection / raycasting --------------------------------------------------
+//
+// Hover to peek, stop hovering to close. There is no X: the window closes
+// itself when the pointer leaves the block.
+//
+// Touch screens have no hover, so "hands off the screen" is expressed as
+// press-and-hold: holding a pillar peeks, releasing closes. That is the
+// honest touch analogue of the same gesture, and the phone is the real
+// product -- a mouse-only interaction would have made the terrain unusable
+// on the device farmers actually hold.
+//
+// The trade-off, stated plainly: during a touch peek the finger is pinned to
+// the pillar, so the card's scrollable history and voice-playback button
+// cannot be reached. On a mouse the pointer can travel onto the card and it
+// stays open, so those controls remain usable there.
 
-function onPointerDown(e) {
-  pointerDownPos = { x: e.clientX, y: e.clientY };
-}
+let hoveredBlockId = null;   // what the card is currently showing
+let pointerIsDown = false;   // touch peek in progress
+let dragStart = null;        // to tell a drag from a tap/hold
 
-function onPointerUp(e) {
-  if (!pointerDownPos) return;
-  const dx = e.clientX - pointerDownPos.x, dy = e.clientY - pointerDownPos.y;
-  pointerDownPos = null;
-  // Treat as a tap only if the pointer didn't move much (otherwise it was an
-  // OrbitControls drag, not a selection).
-  if (Math.sqrt(dx * dx + dy * dy) > 8) return;
-
+function blockAt(clientX, clientY) {
   const rect = renderer.domElement.getBoundingClientRect();
   const ndc = new THREE.Vector2(
-    ((e.clientX - rect.left) / rect.width) * 2 - 1,
-    -((e.clientY - rect.top) / rect.height) * 2 + 1
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
   );
   raycaster.setFromCamera(ndc, camera);
 
-  const allHits = pillarMeshes.flatMap((p) => p.hitTargets.map((m) => ({ mesh: m, blockId: p.blockId, base: p.base })));
+  const allHits = pillarMeshes.flatMap((p) =>
+    p.hitTargets.map((m) => ({ mesh: m, blockId: p.blockId, base: p.base })));
   const intersects = raycaster.intersectObjects(allHits.map((h) => h.mesh));
-  if (intersects.length === 0) return;
-
-  const hitMesh = intersects[0].object;
-  const hit = allHits.find((h) => h.mesh === hitMesh);
-  if (!hit) return;
-
-  selectBlock(hit.blockId, hit.base);
+  if (intersects.length === 0) return null;
+  return allHits.find((h) => h.mesh === intersects[0].object) || null;
 }
 
-function selectBlock(blockId, basePos) {
-  controls.autoRotate = false;
-  selectionRing.visible = true;
-  selectionRing.position.set(basePos.x, 0.02, basePos.z);
-  if (window.FlutterBridge) FlutterBridge.postMessage('select:' + blockId);
-  // Web: the same event, over postMessage. webview_flutter has no web
-  // implementation, so in a browser this page is embedded as an iframe and
+function post(msg) {
+  if (window.FlutterBridge) FlutterBridge.postMessage(msg);
+  // Web: the same event over postMessage. webview_flutter has no web
+  // implementation, so in a browser this page is an iframe and
   // JavaScriptChannel does not exist -- see lib/terrain_embed_web.dart.
   if (window.parent && window.parent !== window) {
-    window.parent.postMessage('huluhilir-select:' + blockId, '*');
+    window.parent.postMessage('huluhilir-' + msg, '*');
   }
 }
 
+function showBlock(hit) {
+  if (hoveredBlockId === hit.blockId) return;   // already showing; do not spam
+  hoveredBlockId = hit.blockId;
+  controls.autoRotate = false;
+  selectionRing.visible = true;
+  selectionRing.position.set(hit.base.x, 0.02, hit.base.z);
+  post('select:' + hit.blockId);
+}
+
+function hideBlock() {
+  if (hoveredBlockId === null) return;
+  hoveredBlockId = null;
+  selectionRing.visible = false;
+  post('deselect');
+}
+
+function onPointerMove(e) {
+  // Mouse hover only. A moving touch is a drag of the camera, and treating it
+  // as hover would flicker the card open and shut while orbiting.
+  if (e.pointerType === 'touch') return;
+  if (pointerIsDown) return;   // mid-drag with a mouse button held
+  const hit = blockAt(e.clientX, e.clientY);
+  if (hit) {
+    showBlock(hit);
+    renderer.domElement.style.cursor = 'pointer';
+  } else {
+    hideBlock();
+    renderer.domElement.style.cursor = '';
+  }
+}
+
+function onPointerDown(e) {
+  pointerIsDown = true;
+  dragStart = { x: e.clientX, y: e.clientY };
+  if (e.pointerType !== 'touch') return;
+  const hit = blockAt(e.clientX, e.clientY);
+  if (hit) showBlock(hit);
+}
+
+function onPointerUp(e) {
+  pointerIsDown = false;
+  const moved = dragStart
+    ? Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y)
+    : 0;
+  dragStart = null;
+  // Releasing always ends a touch peek -- that is the "hands off screen"
+  // half of the gesture. On a mouse, releasing after a drag should not close
+  // a card the pointer is still resting on, so re-test position instead.
+  if (e.pointerType === 'touch') {
+    hideBlock();
+    return;
+  }
+  if (moved > 8) return;   // was an orbit drag; leave the card as it is
+  const hit = blockAt(e.clientX, e.clientY);
+  if (!hit) hideBlock();
+}
+
+function onPointerLeave() {
+  // Pointer left the canvas entirely.
+  pointerIsDown = false;
+  dragStart = null;
+  hideBlock();
+}
+
 window.clearSelection = function () {
+  hoveredBlockId = null;
   selectionRing.visible = false;
 };
 

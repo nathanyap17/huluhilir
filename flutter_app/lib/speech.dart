@@ -18,6 +18,39 @@ import 'providers.dart';
 
 final _player = AudioPlayer();
 
+/// Separate player for the farmer's own recorded block labels, so starting a
+/// label does not cut off a diagnosis being read aloud (and vice versa).
+final _labelPlayer = AudioPlayer();
+
+/// The block whose label is currently playing. Guards against a peek
+/// re-triggering playback on every rebuild -- hover fires a lot of frames.
+String? _labelPlayingFor;
+
+/// Play a block's recorded voice label, at most once per block per peek.
+///
+/// Called when a block is hovered or held rather than from a button: during a
+/// touch peek the finger is pinned to the pillar, so a button on the card
+/// cannot be reached. Hearing the label is what makes the peek usable on a
+/// phone.
+///
+/// This is playback of stored audio. Nothing transcribes it (huluhilir-rules
+/// section 1), which is exactly why an Iban label works here.
+Future<void> playVoiceLabel(String url, String blockId) async {
+  if (_labelPlayingFor == blockId) return;
+  _labelPlayingFor = blockId;
+  try {
+    await _labelPlayer.stop();
+    await _labelPlayer.setUrl(url);
+    await _labelPlayer.play();
+  } catch (_) {
+    // A label that will not play must never interrupt the peek. Silence is
+    // an acceptable degradation; an error dialog over the card is not.
+  }
+}
+
+/// Called when the peek ends, so the next peek at the same block replays.
+void resetVoiceLabel() => _labelPlayingFor = null;
+
 /// Speak a line, showing a snackbar only when something actually went wrong.
 Future<void> speak(
   BuildContext context,

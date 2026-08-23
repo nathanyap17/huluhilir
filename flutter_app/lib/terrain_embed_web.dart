@@ -45,7 +45,7 @@ void _register() {
 
 class _TerrainEmbed extends StatefulWidget {
   final String payloadJson;
-  final void Function(String blockId) onSelect;
+  final void Function(String? blockId) onSelect;
   const _TerrainEmbed({required this.payloadJson, required this.onSelect});
 
   @override
@@ -67,6 +67,12 @@ class _TerrainEmbedState extends State<_TerrainEmbed> {
       final text = data.dartify()?.toString() ?? '';
       // Cheap containment check rather than parsing every message on the
       // window: other Flutter web plumbing posts here too.
+      // deselect is checked FIRST: 'huluhilir-deselect' also contains the
+      // substring 'huluhilir-'  and a looser select check would swallow it.
+      if (text.contains('huluhilir-deselect')) {
+        widget.onSelect(null);
+        return;
+      }
       if (!text.contains('huluhilir-select')) return;
       final match = RegExp(r'huluhilir-select:([A-Za-z0-9_-]+)').firstMatch(text);
       if (match != null) widget.onSelect(match.group(1)!);
@@ -122,6 +128,6 @@ class _TerrainEmbedState extends State<_TerrainEmbed> {
 
 Widget buildTerrainEmbed({
   required String payloadJson,
-  required void Function(String blockId) onSelect,
+  required void Function(String? blockId) onSelect,
 }) =>
     _TerrainEmbed(payloadJson: payloadJson, onSelect: onSelect);

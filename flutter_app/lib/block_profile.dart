@@ -17,6 +17,7 @@ import 'package:just_audio/just_audio.dart';
 import 'models.dart';
 import 'i18n.dart';
 import 'providers.dart';
+import 'speech.dart';
 import 'terrain_canvas.dart' show TerrainCanvas;
 import 'theme.dart';
 
@@ -40,11 +41,29 @@ class BlockProfileCard extends ConsumerWidget {
     this.onClose,
   });
 
+  /// True when the card is a hover/hold peek rather than a pinned window.
+  /// In peek mode the farmer cannot press anything on the card, so the voice
+  /// label plays itself.
+  bool get _isPeek => onClose == null;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colour = TerrainCanvas.stateColour(block.currentState);
     final api = ref.watch(apiClientProvider);
     final detail = ref.watch(blockDetailProvider(block.blockId));
+
+    // Fired after the frame so playback never runs during build. playVoiceLabel
+    // itself is idempotent per block, which matters because a hover peek
+    // rebuilds continuously.
+    if (_isPeek) {
+      detail.whenData((d) {
+        final voice = d['voice_label_uri'] as String?;
+        if (voice == null || voice.isEmpty) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          playVoiceLabel(api.mediaUrl(voice), block.blockId);
+        });
+      });
+    }
 
     return Container(
       decoration: BoxDecoration(

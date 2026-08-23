@@ -118,7 +118,20 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
 
       if (mounted) {
         final refreshed = await api.currentCycle(widget.farmId);
-        setState(() => _cycle = refreshed ?? _cycle);
+        if (refreshed != null) {
+          setState(() => _cycle = refreshed);
+        } else if (_cycle != null && _cycle!.status == 'in_progress') {
+          // If /current returns null, the cycle just completed. Synthesize the
+          // final state so the UI doesn't freeze at (total - 1) / total.
+          setState(() {
+            _cycle = DiagnosisCycleModel(
+              cycleId: _cycle!.cycleId,
+              blocksTotal: _cycle!.blocksTotal,
+              blocksCaptured: _cycle!.blocksTotal,
+              status: 'complete',
+            );
+          });
+        }
       }
     } catch (e) {
       setState(() => _status = 'Gagal hantar: $e');

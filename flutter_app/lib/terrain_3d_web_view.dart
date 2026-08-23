@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'models.dart';
+import 'speech.dart';
 import 'terrain_embed_stub.dart' if (dart.library.js_interop) 'terrain_embed_web.dart';
 import 'theme.dart';
 
@@ -23,7 +24,7 @@ class Terrain3DWebView extends ConsumerStatefulWidget {
   final List<TerrainNode> nodes;
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
-  final Widget Function(String blockId, VoidCallback onClose) profileBuilder;
+  final Widget Function(String blockId, VoidCallback? onClose) profileBuilder;
   final double height;
 
   const Terrain3DWebView({
@@ -74,6 +75,7 @@ class _Terrain3DWebViewState extends ConsumerState<Terrain3DWebView> {
             child: buildTerrainEmbed(
               payloadJson: _payloadJson,
               onSelect: (blockId) {
+                if (blockId == null) resetVoiceLabel();
                 if (mounted) setState(() => _selectedBlockId = blockId);
               },
             ),
@@ -83,11 +85,11 @@ class _Terrain3DWebViewState extends ConsumerState<Terrain3DWebView> {
               left: 12,
               right: 12,
               bottom: 12,
-              child: Material(
-                color: Colors.transparent,
-                child: widget.profileBuilder(
-                  _selectedBlockId!,
-                  () => setState(() => _selectedBlockId = null),
+              child: IgnorePointer(
+                ignoring: true,
+                child: Material(
+                  color: Colors.transparent,
+                  child: widget.profileBuilder(_selectedBlockId!, null),
                 ),
               ),
             ),

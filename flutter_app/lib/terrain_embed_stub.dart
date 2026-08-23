@@ -12,6 +12,6 @@ import 'package:flutter/material.dart';
 /// `Terrain3DView` there. Present only to satisfy the conditional import.
 Widget buildTerrainEmbed({
   required String payloadJson,
-  required void Function(String blockId) onSelect,
+  required void Function(String? blockId) onSelect,
 }) =>
     const SizedBox.shrink();

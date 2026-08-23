@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import 'models.dart';
+import 'speech.dart';
 import 'providers.dart';
 import 'theme.dart';
 
@@ -24,7 +25,7 @@ class Terrain3DView extends ConsumerStatefulWidget {
   final List<TerrainNode> nodes;
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
-  final Widget Function(String blockId, VoidCallback onClose) profileBuilder;
+  final Widget Function(String blockId, VoidCallback? onClose) profileBuilder;
   final double height;
 
   const Terrain3DView({
@@ -70,6 +71,11 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
       _sendData();
     } else if (msg.startsWith('select:')) {
       setState(() => _selectedBlockId = msg.substring('select:'.length));
+    } else if (msg == 'deselect') {
+      resetVoiceLabel();
+      // The scene closes the card itself when the pointer leaves the block
+      // (mouse) or the finger lifts (touch). There is no X to press.
+      setState(() => _selectedBlockId = null);
     }
   }
 
@@ -95,10 +101,7 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
     _controller.runJavaScript('window.renderTerrain(${jsonEncode(payload)});');
   }
 
-  void _closeProfile() {
-    setState(() => _selectedBlockId = null);
-    if (_ready) _controller.runJavaScript('window.clearSelection && window.clearSelection();');
-  }
+
 
   @override
   void dispose() {
@@ -158,9 +161,15 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
               top: 12,
               left: 12,
               right: 12,
-              child: Material(
-                color: Colors.transparent,
-                child: widget.profileBuilder(_selectedBlockId!, _closeProfile),
+              child: IgnorePointer(
+                // On touch the finger is on the pillar, not the card, and on
+                // a mouse the card must not swallow the pointer on its way
+                // back to the scene -- either would strand the peek open.
+                ignoring: true,
+                child: Material(
+                  color: Colors.transparent,
+                  child: widget.profileBuilder(_selectedBlockId!, null),
+                ),
               ),
             ),
         ]),
