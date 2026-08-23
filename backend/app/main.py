@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import SessionLocal, init_db
-from app.routers import agent, dashboard, diagnosis, health, media, setup, tools
+from app.routers import agent, dashboard, diagnosis, health, media, setup, speech, tools
 
 
 @asynccontextmanager
@@ -50,3 +50,4 @@ app.include_router(setup.router)
 app.include_router(media.router)
 app.include_router(diagnosis.router)
 app.include_router(dashboard.router)
+app.include_router(speech.router)

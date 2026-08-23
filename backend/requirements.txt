@@ -14,6 +14,8 @@ pillow
 numpy
 litellm
 google-adk
+# Block E: agent output -> speech. ADC auth, no API key (see app/speech/synth.py).
+google-cloud-texttospeech
 python-multipart
 pytest
 pytest-asyncio

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/banner.png" alt="HuluHilir" width="100%">
+</p>
+
 # HuluHilir
 
 **Terrain-aware agentic early warning for Phytophthora foot rot in Sarawak black pepper.**
@@ -89,6 +93,19 @@ These are product commitments from the submitted proposal, held even where a sho
 6. **The app works with zero photographs taken.** Rain-pulse warnings and the advisor run without any diagnosis cycle existing.
 7. **Every user-facing string has a `speech_template_id`.** Literacy is not assumed.
 8. **Every risk number carries `is_estimate: true`.** The spread model is physically motivated, not field-validated.
+
+---
+
+## Live deployment
+
+| | |
+|---|---|
+| API | https://huluhilir-api-mfrzixfqeq-as.a.run.app |
+| Interactive docs | [`/docs`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs) |
+| Readiness + seed state | [`/health/ready`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/health/ready) |
+
+Cloud Run (`asia-southeast1`) · Vertex AI `gemini-2.5-flash` · Cloud SQL Postgres · Google Cloud TTS.
+Authentication throughout is the service's own service account — there is no API key in this repository or in its configuration.
 
 ---
 

@@ -399,3 +399,53 @@ Only `gemini-2.5-flash` returned `200`; every 2.0 and 1.5 variant tried (includi
 - Two Cloud Run URLs were returned across different commands (the deploy command's own stdout vs. a later `gcloud run services describe` call) — both route to the same service (Cloud Run's default domain plus its stable alias), but only one should be used consistently in the cloud-target APK build and shared with the team.
 
 ---
+
+## [Cloud Deploy 2] Ephemeral DB → Cloud SQL, root 404, and farm discoverability
+
+Three problems surfaced when the deployed service was actually opened in a browser and poked at, rather than only curl'd at the routes known to exist.
+
+### `GET /` returned `{"detail":"Not Found"}`
+
+Correct FastAPI behaviour (no `/` route was declared), but the Cloud Run URL is a link people *open* — teammates, judges — and a 404 at the root reads as a broken deployment even when every real route is healthy. Added a root route that self-describes and points at `/docs`, plus `GET /health/ready`, which counts seeded rows: plain liveness cannot distinguish a healthy instance from one whose seed silently failed, which is a live risk on an ephemeral filesystem.
+
+### The database was genuinely not durable — confirmed, not theorised
+
+The farm created during the previous session's cloud test was **gone**. Root cause was not idle recycling: `gcloud run revisions list` showed revision `00003` was created at 08:42:52Z by the earlier `services update` (the Vertex AI model fix), a few minutes *after* the farm was created — and a new revision means a new container with a fresh, empty `/tmp`. So the real behaviour was: data survives within a revision, and is destroyed by every redeploy or env-var change. For a link meant to stay up across the competition that is not acceptable, and it also meant the seeded demo farm drew a **new ULID on every revision**, so nothing could reference it stably.
+
+**Fix:** migrated CLOUD to Cloud SQL Postgres 15 (`huluhilir-db`, db-f1-micro, asia-southeast1). This cost almost nothing in code because `app/db.py` was already fully `DATABASE_URL`-driven and a grep confirmed zero SQLite-specific SQL anywhere in `app/` — the only code change was adding `asyncpg` to requirements. The connection string contains the DB password, so it lives in Secret Manager (`huluhilir-db-url`) and is injected via `--set-secrets DATABASE_URL=...`, never as a plaintext env var; Cloud Run reaches the instance over its Unix socket via `--add-cloudsql-instances`. The compute service account was granted `secretmanager.secretAccessor` and `cloudsql.client`.
+
+**Verified by reproducing the original failure:** created a farm through the live API, then deliberately forced a new revision with a throwaway env-var update — the exact operation that destroyed the data last time. The farm survived (`/farms` returned both it and the demo farm), `/health/ready` reported `postgresql+asyncpg`, and the demo farm was **not** duplicated, confirming the idempotent seed guards work on Postgres and not just SQLite. A leftover `Durability Probe Farm` row is still visible on `/farms` from this test; harmless, but delete it before the pitch.
+
+### `GET /farms` added
+
+With farm IDs assigned at insert time, there was no way for a client — or a judge with a browser — to discover the current demo farm. This lists them. It exposes no ownership or boundary data (huluhilir-rules §4); a farm row is a name and a centroid point.
+
+---
+
+## [Block E] Speech — Cloud TTS over agent output, not pre-recorded clips
+
+**Deliberate deviation from PLAN.md.** The original Block E bundled pre-recorded `.wav` clips per speech template, with synthesis as an "optimised tier" reach goal, and a `tts/` MMS-VITS service existed as a stub (never wired into the backend). That design inverts once the *agent* is the thing talking: a recommendation's `reason_ms` is composed at runtime from live weather and real block state, so there is no finite set of sentences to pre-record. Synthesising agent output directly is the only thing that actually covers the demo path.
+
+**Rule #7 is not weakened by this.** Templates remain the canonical source of phrasing and `POST /speech/render` is the path that uses them (including `slot_vocabulary` lookup, so the spoken noun is the native-speaker-verified term rather than whatever the LLM wrote). `POST /speech/say` exists only for genuinely runtime-composed strings that no template can cover, and still records a `template_id` where one applies.
+
+**Implementation:** `app/speech/synth.py` (Google Cloud TTS, ADC auth via the Cloud Run service account — no API key, same story as Vertex AI) and `app/routers/speech.py`. Audio is cached on `sha256(text + language + voice)` rather than on `(template_id, slots)`, because agent-composed strings have no template and two templates rendering identical text should not pay for synthesis twice. The synchronous Cloud TTS client is run via `asyncio.to_thread` so slow synthesis cannot block the rest of the API.
+
+**Never on the critical path.** Every failure path returns `audio_uri: null` plus a `degraded_reason` instead of raising — a farmer who cannot hear the advice must still be able to read it. The route cannot 500 on a synthesis failure.
+
+### Verified (how)
+
+- Locally against **real** Cloud TTS (not a mock): `/speech/say` returned a genuine 36,480-byte MP3 in `ms-MY-Standard-A`, `/speech/audio/{key}` served it back with `content-type: audio/mpeg`, and an immediate repeat returned `cache_hit: true`.
+- Against the deployed service after the Cloud SQL migration: same call succeeded on Cloud Run, confirming the service account's ADC reaches Cloud TTS with no key configured.
+
+### Known gaps
+
+- **No Iban voice exists.** Cloud TTS ships `ms-MY` but has no `iba` voice, and no major commercial TTS does. Iban currently falls back to the Malay voice reading Iban text — intelligible (shared phonology, Latin script) but not correct. The response reports which voice actually spoke, so this is visible rather than silently pretended-away. The `tts/` MMS-VITS stub (`facebook/mms-tts-iba`) remains in the repo precisely because it is the only route to a real Iban voice; it is unwired and untested.
+- `duration_ms` is **estimated** from character count (~14 chars/sec at `speaking_rate` 0.92), not measured — decoding MP3 to measure it would need another dependency. Fine for sizing a progress bar, wrong for anything that needs real timing.
+- **The Flutter app does not call these endpoints yet.** The backend speech layer is complete and verified; wiring playback into the dashboard is outstanding.
+- Audio cache files are written under `MEDIA_ROOT` (`/tmp/media` on Cloud Run), so cached audio — unlike the database — is still lost on a new revision. Harmless: the `audio_cache` row and the file are re-created on the next request. Worth moving to Firebase Storage only if synthesis cost becomes a concern.
+
+### Local test suite state
+
+`tests/test_agent_arbitration.py` currently **fails locally** with `litellm.Timeout: Connection timed out. Timeout passed=600.0` against Ollama. This is an environment problem, not a regression: Ollama's HTTP endpoint answers (`/api/tags` → 200) but `qwen2.5:14b` generation exceeded ten minutes while the machine was simultaneously running Docker builds, Cloud Run deploys and a Flutter release build. The other 22 backend tests pass. Re-run this test on an otherwise-idle machine before trusting it either way — do not read the current failure as the agent being broken, and do not assume it passes without re-running it.
+
+---

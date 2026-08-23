@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # at a writable path (/tmp) or Firebase Storage -- see docs/BUILD_LOG.md.
     media_root: str = "./media"
 
+    # Google Cloud TTS (Block E). Auth is ADC -- the Cloud Run service account
+    # on CLOUD, `gcloud auth application-default login` locally. No key here.
+    tts_language_default: str = "ms"
+
     cnn_model_path: str = "../classifier/best-model/huluhilir_l1.onnx"
     cnn_labels_path: str = "../classifier/best-model/labels.txt"
     cnn_preprocess_path: str = "../classifier/best-model/preprocess.json"
