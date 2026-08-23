@@ -867,3 +867,35 @@ With both blocks returning `healthy_leaf` / `unrelated`, every block stayed `pro
 Added `_AllClearCard`: no recommendation is a *result*, not an empty state. It says every checked block looks healthy and to check again after the next heavy rain.
 
 ---
+
+## [Classifier cues + the X, actually found]
+
+### The close button: unbounded width, not a duplicate
+
+Fixed twice before by removing duplicate close buttons — both real, neither the cause. The actual bug was layout.
+
+In `terrain_3d_view.dart` the profile card was `Positioned(top: 12, right: 12)` with **no `left` and no width**. That gives the child *unbounded* width, and `BlockProfileCard`'s header uses `SizedBox(width: double.infinity)` — so the card laid out wider than the Stack. `ClipRRect` hid the overflow, so it *looked* right, but **Flutter does not hit-test outside a parent's bounds**, and the close button sat in the clipped region. Visible, untappable.
+
+The web view had `left` *and* `right` set from the start, which is exactly why the same card closed correctly there and only Android was broken — a difference I had been reading as "the web path is fine" rather than as the clue it was.
+
+### Structured visual cues for the six classes
+
+Prompt replaced with the per-class cue table supplied by the team: HSV ranges, texture, boundary character, scale thresholds, location constraints, and an explicit *"discriminates from"* line naming the nearest confusable class. Plus a fixed decision order — reject test first, then `collar_lesion` (checked early because it is the costliest miss), then body part.
+
+`collar_lesion` escalates on any positive signal even at low confidence, reporting the low confidence honestly rather than downgrading the class.
+
+### What the tests do and do NOT show
+
+Live after deploy:
+
+| image | target | result |
+|---|---|---|
+| green ellipse with venation | leaf | `healthy_leaf` **0.95** ✓ |
+| flat yellow ellipse | leaf | `unrelated` 1.0 |
+| black blob on brown bar | collar | `unrelated` 0.95 |
+
+**The last two are the model being right, not wrong.** A flat yellow ellipse and a rectangle with a dark patch are not identifiable pepper tissue, and step 1 of the prompt says to reject when tissue is not identifiable. Only the leaf drawing was realistic enough to grade.
+
+So `foliar_yellowing`, `collar_lesion`, `healthy_collar` and `defoliation_wilt` remain **unvalidated** — drawn shapes cannot exercise them, and claiming otherwise from these results would be inventing evidence. Real field photographs are the only way to test them, which is the next step.
+
+---

@@ -146,10 +146,22 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
               ),
             ),
           if (_selectedBlockId != null)
+            // left AND right, not right alone. With only `right` set the card
+            // gets UNBOUNDED width, and its header uses
+            // `SizedBox(width: double.infinity)` -- so it laid out wider than
+            // the Stack, putting its close button outside the parent's
+            // bounds. Flutter does not hit-test outside those bounds, so the
+            // X was visible (ClipRRect hid the overflow) but untappable.
+            // The web view was already constrained on both sides, which is
+            // why the same card closed correctly there.
             Positioned(
               top: 12,
+              left: 12,
               right: 12,
-              child: widget.profileBuilder(_selectedBlockId!, _closeProfile),
+              child: Material(
+                color: Colors.transparent,
+                child: widget.profileBuilder(_selectedBlockId!, _closeProfile),
+              ),
             ),
         ]),
       ),

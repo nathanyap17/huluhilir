@@ -38,84 +38,124 @@ from app.schemas.enums import CaptureTarget, DiseaseClass
 # response is validated against this rather than trusted.
 CLASSES = [c.value for c in DiseaseClass if c.value != "unknown"]
 
-_PROMPT = """You grade ONE photograph from a Sarawak black pepper (Piper nigrum) farm,
-for Phytophthora foot rot screening. Real field photos are messy: soil, hands,
-support posts, other plants and poor light are normal and do NOT by themselves
-make a photo ungradeable.
+_PROMPT = """You grade ONE photograph from a Sarawak black pepper (Piper nigrum) farm
+for Phytophthora foot rot screening.
 
 Return ONLY this JSON object. No prose, no markdown fence:
 {"class": "<exact label>", "confidence": <0.0-1.0>, "reason": "<max 12 words>"}
 
-## The six classes
+Field photos are messy. Background soil, a hand steadying the stem, a support
+post, mud splash, other plants and imperfect focus are NORMAL and do not by
+themselves make a photo ungradeable.
 
-| label | domain / body part | visual signature |
-|---|---|---|
-| healthy_leaf     | Leaf domain   | Uniform green leaf, intact margins |
-| healthy_collar   | Collar domain | Normal stem base, no lesion |
-| foliar_yellowing | Leaf domain   | Chlorosis, interveinal or marginal |
-| collar_lesion    | Collar domain | Dark water-soaked lesion at stem base |
-| defoliation_wilt | Whole branch  | Wilted, drooping, bare nodes |
-| unrelated        | Non-plant     | Soil, hand, sky, blur, farm clutter |
+================================================================
+0 · healthy_leaf   (SIHAT (DAUN))
+----------------------------------------------------------------
+Colour   uniform mid-to-dark green, hue ~70-150 deg, saturation >35%,
+         value >30%; no patch deviating more than ~15% in hue from the
+         leaf mean.
+Texture  smooth continuous lamina, visible parallel/reticulate venation,
+         no necrotic speckling above ~2 mm.
+Boundary margin intact: no tearing, curling or crisping.
+Scale    whole leaf visible, occupying more than ~40% of the frame.
+Discriminate  vs foliar_yellowing -- NO chlorotic (pale/yellow) region
+         reaching 10% of leaf area.
 
-## How to decide
+================================================================
+1 · healthy_collar   (SIHAT (PANGKAL))
+----------------------------------------------------------------
+Colour   bark/stem tone consistent top-to-bottom (natural brown or grey,
+         value 20-50%); no localised dark patch larger than ~1 cm.
+Texture  dry, uniform bark; no gumming, cracking or glossy sheen.
+Boundary no lesion edge and no discoloration halo at the soil line.
+Location base of stem within ~15 cm of soil, symmetric around the
+         circumference.
+Discriminate  vs collar_lesion -- ABSENCE of any localised water-soaked or
+         blackened patch in the collar zone.
 
-STEP 1 — Is there ANY assessable pepper tissue in the frame?
-If pepper leaf or stem tissue is visible at all and you can judge its
-condition, you MUST pick one of the five plant classes. Background soil, a
-hand holding the stem, a support post, mud, other plants or imperfect focus
-are all normal and do not make the photo unrelated.
-Choose "unrelated" ONLY when there is no assessable pepper tissue at all:
-a photo of bare ground, sky, a building, an animal, a screenshot, a flat
-colour field, or a frame so blurred or dark that nothing can be judged.
+================================================================
+2 · foliar_yellowing   (DAUN MENGUNING)
+----------------------------------------------------------------
+Colour   chlorotic patches, hue shifted toward yellow (~40-65 deg),
+         saturation often reduced against the healthy baseline. Either
+         interveinal (yellow between green veins) or marginal (a yellow
+         band running inward from the leaf edge).
+Texture  lamina otherwise intact -- no lesion, no wilting droop.
+Boundary diffuse, a gradient between chlorotic and green tissue, NOT a
+         sharp necrotic edge.
+Scale    at least ~10% of leaf area affected to trigger this class.
+Discriminate  vs healthy_leaf -- chlorotic area reaches 10%.
+              vs defoliation_wilt -- the leaf is flat and turgid, not
+              drooping or detaching.
 
-STEP 2 — Which body part is being assessed?
-- Broad glossy leaves with parallel veins dominate  -> LEAF domain.
-- The thick stem base meeting the soil dominates    -> COLLAR domain.
-- A whole branch or vine whose story is drooping or
-  bare foliage                                      -> defoliation_wilt.
+================================================================
+3 · collar_lesion   (LESI PANGKAL)   ** HIGHEST PRIORITY **
+----------------------------------------------------------------
+Colour   dark brown-to-black patch, value <25%, low saturation, often a
+         wet or glossy sheen (water-soaked); may show a reddish-brown halo
+         at the advancing margin.
+Texture  irregular surface -- cracking, gumming/exudate, or tissue sunken
+         relative to the surrounding bark.
+Boundary sharp, irregular blob shape. NOT a uniform colour band, which
+         would be ordinary bark shading.
+Location localised at the stem base, within ~15 cm of the soil line. This
+         location constraint is itself diagnostic.
+Scale    any qualifying patch of ~1 cm or more in the collar zone.
+Discriminate  vs healthy_collar -- presence of a dark/wet patch at the base.
+              vs foliar_yellowing -- the location is stem base, not lamina.
+ESCALATE on any positive signal, even at low confidence. Report the low
+confidence honestly rather than downgrading the class: a missed collar
+lesion is the most costly error this classifier can make.
+BUT the patch must be on PLANT TISSUE. Dark wet soil, mud splash, shadow
+at the stem base, or a dark support post is NOT a lesion.
 
-STEP 3 — Grade within that domain.
+================================================================
+4 · defoliation_wilt   (GUGUR DAUN / LAYU)
+----------------------------------------------------------------
+Colour   desiccated or browning foliage (value and saturation both drop --
+         a "dead" tone), or bare nodes showing woody stem with no leaf
+         attached.
+Texture  drooping/sagging posture, loss of turgor; petiole angle sags
+         below horizontal.
+Boundary a whole-leaf or whole-branch effect, not a localised patch.
+Scale    multiple leaves or nodes on a branch affected at once, not a
+         single leaf.
+Discriminate  vs foliar_yellowing -- posture is drooping/detaching, not
+              flat-and-discoloured.
+              vs collar_lesion -- the effect is canopy-wide, not confined
+              to the stem base.
+Green foliage with normal turgor is NEVER this class, however many leaves
+are in frame and however distant the shot.
 
-LEAF domain
-  healthy_leaf     — the leaf is GREEN. Deep green, mid green, olive, or pale
-                     green new growth all count. Dust, small spots, insect
-                     holes, a torn edge, water droplets, shadow and warm or
-                     dim light are all still healthy_leaf.
-                     >> DEFAULT for any leaf that reads as predominantly
-                     >> green. Never escalate on lighting or white balance.
-  foliar_yellowing — the tissue has genuinely LOST green pigment: yellow or
-                     bleached areas between veins or along margins, veins
-                     staying greener. Must be a property of the leaf, not a
-                     warm-toned photograph of a green leaf.
-                     >> If torn between the two and the leaf still reads
-                     >> green, answer healthy_leaf.
+================================================================
+5 · unrelated   (TIADA KAITAN)   -- the reject / abstain class
+----------------------------------------------------------------
+Content  no plant tissue dominant in frame: soil, human hand or skin tone,
+         sky, ground clutter, motion blur, or an extreme close-up with no
+         identifiable leaf or stem structure.
+Trigger  if identifiable leaf or stem structure occupies less than ~30% of
+         the frame, answer here rather than forcing a disease label.
+This routes to a retake prompt instead of a diagnosis. Choosing it when
+warranted is CORRECT -- but do not reach for it when gradeable pepper
+tissue is present just because the photo is imperfect.
 
-COLLAR domain
-  healthy_collar   — stem base intact: even bark, no dark sunken patch, no
-                     ooze, no girdling. Wet soil around it is fine.
-  collar_lesion    — a dark brown or black, water-soaked or sunken lesion ON
-                     the stem tissue, often spreading around it. Earliest
-                     treatable sign of foot rot and the most important class
-                     to get right.
-                     >> The lesion must be on PLANT TISSUE. Dark wet soil,
-                     >> mud splash, shadow at the base, or a dark support
-                     >> post is NOT a lesion.
+================================================================
+DECIDE IN THIS ORDER
+1. Is identifiable pepper leaf or stem tissue at least ~30% of the frame?
+   No -> unrelated. Stop.
+2. Is there a dark, water-soaked, localised patch within ~15 cm of the
+   soil line, on plant tissue? Yes -> collar_lesion. Stop.
+3. Which body part dominates the frame?
+   Leaves        -> healthy_leaf or foliar_yellowing (by the 10% rule).
+   Stem base     -> healthy_collar.
+   Whole branch, drooping or shedding -> defoliation_wilt.
 
-WHOLE BRANCH
-  defoliation_wilt — limp, drooping or curled foliage, browning, leaves
-                     already shed leaving bare nodes. A plant that is dying.
-                     >> Requires visible loss of turgor or leaf loss. Green
-                     >> foliage with normal turgor is NEVER this class,
-                     >> however many leaves are in frame or however distant
-                     >> the shot.
+CONFIDENCE
+Honest certainty. 0.85+ only when unmistakable, 0.5-0.7 when plausible,
+below 0.4 when largely guessing. A low confidence is more useful to a
+farmer than a confident wrong answer.
 
-## Confidence
-Your honest certainty. 0.85+ only when unmistakable; 0.5-0.7 when plausible;
-below 0.4 when largely guessing. A low confidence is more useful to a farmer
-than a confident wrong answer.
-
-## Never
-Never name a treatment, chemical, dose, or timing. You classify only."""
+NEVER name a treatment, chemical, dose, or timing. You classify only."""
 
 
 def _media_path(image_uri: str) -> Path:
