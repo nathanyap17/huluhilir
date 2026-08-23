@@ -116,13 +116,21 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
         }
       });
 
-      if (mounted) {
+      // The server returns the cycle it just updated, so there is nothing to
+      // re-fetch and nothing to infer. /diagnosis-cycles/current cannot serve
+      // this: it filters on status == "in_progress" and so returns null the
+      // moment a cycle completes, which is what froze the counter one short
+      // of the total.
+      if (mounted && result.cycle != null) {
+        setState(() => _cycle = result.cycle);
+      } else if (mounted) {
+        // Older server, or an observation sent outside a cycle. Fall back to
+        // the re-fetch, and treat a null as completion rather than keeping a
+        // stale count.
         final refreshed = await api.currentCycle(widget.farmId);
         if (refreshed != null) {
           setState(() => _cycle = refreshed);
         } else if (_cycle != null && _cycle!.status == 'in_progress') {
-          // If /current returns null, the cycle just completed. Synthesize the
-          // final state so the UI doesn't freeze at (total - 1) / total.
           setState(() {
             _cycle = DiagnosisCycleModel(
               cycleId: _cycle!.cycleId,

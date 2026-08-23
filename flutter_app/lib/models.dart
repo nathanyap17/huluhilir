@@ -306,6 +306,11 @@ class DiagnosisResult {
   final int retakesRemaining;
   final bool acceptedDespiteMismatch;
 
+  /// The cycle as the server sees it AFTER this observation. Authoritative:
+  /// re-fetching /diagnosis-cycles/current cannot serve this purpose because
+  /// it returns null once a cycle completes.
+  final DiagnosisCycleModel? cycle;
+
   DiagnosisResult({
     required this.predictedClass,
     required this.confidence,
@@ -315,6 +320,7 @@ class DiagnosisResult {
     this.attempt = 1,
     this.retakesRemaining = 2,
     this.acceptedDespiteMismatch = false,
+    this.cycle,
   });
 
   factory DiagnosisResult.fromJson(Map<String, dynamic> json) {
@@ -328,6 +334,14 @@ class DiagnosisResult {
       attempt: json['attempt'] ?? 1,
       retakesRemaining: json['retakes_remaining'] ?? 2,
       acceptedDespiteMismatch: json['accepted_despite_mismatch'] ?? false,
+      cycle: json['cycle'] == null
+          ? null
+          : DiagnosisCycleModel(
+              cycleId: json['cycle']['cycle_id'],
+              blocksTotal: json['cycle']['blocks_total'],
+              blocksCaptured: json['cycle']['blocks_captured'],
+              status: json['cycle']['status'],
+            ),
     );
   }
 }

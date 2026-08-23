@@ -229,8 +229,28 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
                 cycle.completed_at = now_kuching()
 
     await session.commit()
+
+    # The authoritative cycle state, returned with the observation that
+    # changed it. Without this the client had to re-GET
+    # /diagnosis-cycles/current, which filters on status == "in_progress" and
+    # therefore returns NULL the instant a cycle completes -- so the app kept
+    # its stale copy and froze one short of the total. Reading the counter
+    # from the response that produced it removes both the round trip and the
+    # inference.
+    cycle_state = None
+    if req.cycle_id:
+        c = await session.get(DiagnosisCycle, req.cycle_id)
+        if c is not None:
+            cycle_state = {
+                "cycle_id": c.cycle_id,
+                "blocks_total": c.blocks_total,
+                "blocks_captured": c.blocks_captured,
+                "status": c.status,
+            }
+
     return {
         "observation_id": observation.observation_id,
+        "cycle": cycle_state,
         "diagnosis": result.model_dump(mode="json"),
         "counts_as_check": counts_as_check,
         "retake_prompt": result.mismatch_flag,

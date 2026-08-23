@@ -69,6 +69,14 @@ class _TerrainEmbedState extends State<_TerrainEmbed> {
       // window: other Flutter web plumbing posts here too.
       // deselect is checked FIRST: 'huluhilir-deselect' also contains the
       // substring 'huluhilir-'  and a looser select check would swallow it.
+      // The scene says when it is alive. Pushing on this signal is what makes
+      // the first paint reliable: the blind retry below is a backstop, not the
+      // mechanism, and on a slow iframe it used to exhaust before the page
+      // could listen -- leaving an empty ground plane until re-entry.
+      if (text.contains('huluhilir-ready')) {
+        _push();
+        return;
+      }
       if (text.contains('huluhilir-deselect')) {
         widget.onSelect(null);
         return;

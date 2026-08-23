@@ -151,7 +151,13 @@ function init() {
 
   animate();
   setStatus('ready');
-  if (window.FlutterBridge) FlutterBridge.postMessage('ready');
+  // Announce readiness on BOTH transports. This used to be FlutterBridge
+  // only, which does not exist inside an iframe -- so on web nothing told the
+  // host the scene was alive, the host just blind-retried the payload eight
+  // times over ~2.8s, and a slow iframe missed every one. The result was a
+  // bare ground plane until the farmer left the dashboard and came back.
+  // `post` is defined below but hoisted, so calling it here is fine.
+  post('ready');
 }
 
 function onResize() {
