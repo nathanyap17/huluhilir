@@ -44,6 +44,9 @@ class ForecastPoint(ORMModel):
 
 class FindSprayWindowRequest(ORMModel):
     treatment_id: str
+    rainfast_hours: Optional[int] = Field(
+        default=None, description="From the matching TreatmentOptionOut -- looked up by the caller, not this tool"
+    )
     forecast: list[ForecastPoint]
 
 

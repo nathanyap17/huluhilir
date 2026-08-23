@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+httpx
 pydantic>=2
 pydantic-settings
 sqlalchemy>=2
@@ -10,3 +11,5 @@ numpy
 litellm
 google-adk
 python-multipart
+pytest
+pytest-asyncio

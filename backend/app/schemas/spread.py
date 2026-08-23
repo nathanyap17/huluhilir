@@ -16,8 +16,10 @@ class FarmGraphNode(ORMModel):
 class FarmGraphEdge(ORMModel):
     from_block_id: str
     to_block_id: str
+    horizontal_dist_m: float = Field(description="Used to pick the shortest downhill path")
     flow_weight: float = Field(ge=0, le=1)
     barrier: bool = False
+    farmer_confirmed: bool = Field(default=False, description="Feeds confidence, not risk")
 
 
 class FarmGraph(ORMModel):
@@ -31,6 +33,9 @@ class ComputeSpreadRequest(ORMModel):
     farm_graph: FarmGraph
     rainfall_7d_mm: float
     forecast_7d_mm: float
+    elevation_tier: ElevationTier = Field(
+        description="Confidence base range: minimal 0.55-0.75, optimised 0.75-0.95 (docs/PROJECT_SPEC.md §4)"
+    )
 
 
 class SpreadResultItem(ORMModel):
