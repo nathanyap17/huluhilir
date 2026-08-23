@@ -170,6 +170,17 @@ class ApiClient {
     return UserModel.fromJson(r.data);
   }
 
+  /// Raw farm rows, used only to find the seeded demo farm.
+  ///
+  /// Returns maps rather than FarmModel because the caller needs `user_id`,
+  /// which FarmModel deliberately does not carry -- the app never has a
+  /// reason to know who owns a farm, and adding the field to the model to
+  /// serve one screen would put ownership data everywhere a farm goes.
+  Future<List<Map<String, dynamic>>> listFarms() async {
+    final r = await _dio.get('/farms');
+    return (r.data as List).cast<Map<String, dynamic>>();
+  }
+
   // ---- dashboard / agent ---------------------------------------------------
 
   Future<DashboardModel> dashboard(String farmId) async {

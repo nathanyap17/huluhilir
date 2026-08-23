@@ -446,6 +446,42 @@ With farm IDs assigned at insert time, there was no way for a client — or a ju
 
 ### Local test suite state
 
-`tests/test_agent_arbitration.py` currently **fails locally** with `litellm.Timeout: Connection timed out. Timeout passed=600.0` against Ollama. This is an environment problem, not a regression: Ollama's HTTP endpoint answers (`/api/tags` → 200) but `qwen2.5:14b` generation exceeded ten minutes while the machine was simultaneously running Docker builds, Cloud Run deploys and a Flutter release build. The other 22 backend tests pass. Re-run this test on an otherwise-idle machine before trusting it either way — do not read the current failure as the agent being broken, and do not assume it passes without re-running it.
+`tests/test_agent_arbitration.py` currently **fails locally** with `litellm.Timeout: Connection timed out. Timeout passed=600.0` against Ollama. This is an environment problem, not a regression: Ollama's HTTP endpoint answers (`/api/tags` → 200) but `qwen2.5:14b` generation exceeded ten minutes while the machine was simultaneously running Docker builds, Cloud Run deploys and a Flutter release build. A later re-run made the cause explicit — `Ollama_chatException - {"error":"an error was encountered while running the model: CUDA error: out of memory"}`. The GPU was exhausted by concurrent builds. The other 22 backend tests pass. Re-run this test on an otherwise-idle machine before trusting it either way — do not read the current failure as the agent being broken, and do not assume it passes without re-running it.
+
+---
+
+## [Web] Flutter web on Firebase Hosting — the UI, reachable without an APK
+
+The Cloud Run URL is the **backend**. Opening it in a browser shows a JSON service descriptor, which is correct but useless as a demonstration — the product is the Flutter UI. The APK covers phones, but nothing let a judge (or a teammate without an Android device) *see* the app. Added a Flutter web target deployed to Firebase Hosting: **https://sfws-aicc-workspace-1.web.app**
+
+This is the split `CLAUDE.md` already specified — Cloud Run for the backend (it needs a container, Vertex AI, Cloud SQL, none of which Firebase Hosting can run) and Firebase Hosting for the static frontend.
+
+### Three real incompatibilities, each fixed without touching the Android path
+
+Every fix below is guarded by `kIsWeb`, which is a **compile-time constant** on Android — the APK is byte-for-byte unaffected and the web branches are tree-shaken out. The committed mobile baseline was never put at risk.
+
+**1 — `webview_flutter` has no web implementation**, so the 3D terrain cannot run in a browser. Rather than write a second 3D implementation, the dashboard falls back to `TerrainCanvas`, the 2D flow diagram that was deliberately kept when the 3D view replaced it. It takes an *identical* argument list, so this is a straight swap, not a parallel implementation to maintain. **This is exactly the scenario that fallback was retained for.**
+
+**2 — `sqflite` has no web implementation**, and the dashboard calls `outbox.cacheFarmState()` on every load. Guarded inside `Outbox` itself (`static const _unavailable = kIsWeb`) so every method degrades to a no-op or empty result and no call site needs to learn about platforms. Losing the offline queue is acceptable on web in a way it never would be on a phone: the browser build exists so the dashboard can be *viewed*, and nobody walks a hillside with a laptop.
+
+**3 — geolocation is unavailable or refused**, which hard-blocked registration with *"Akses lokasi diperlukan"*. This was a genuine product bug, not merely a web one: **a farmer who tapped "deny" once was permanently locked out of setup.** Location here only selects a weather station — farm structure comes from the walk and from the farmer's own elevation answers, which override sensors anyway (huluhilir-rules §3). Now falls back to a district centroid table with a non-blocking notice that the station is estimated. `_locate()` also catches outright (previously uncaught) exceptions, covering emulators with no location set and devices with location services off.
+
+### `Lihat ladang demo` — the dashboard was otherwise unreachable
+
+Even with registration fixed, completing setup requires *walking the farm with a GPS fix*. Nobody evaluating the app from a desk can do that, which left the entire dashboard — rain pulse, advisor, arbitration result, terrain model — unreachable to anyone not standing in a pepper garden. Added an entry point that loads the seeded demo farm read-only. It finds the farm **by name, not by a hardcoded ID**, because IDs are ULIDs assigned at insert time and the cloud DB reseeds on every new revision — any baked-in constant would go stale within a deploy. `listFarms()` returns raw maps rather than `FarmModel` because the caller needs `user_id`, which `FarmModel` deliberately does not carry: the app has no reason to know who owns a farm, and adding the field to serve one screen would spread ownership data everywhere a farm goes.
+
+### Verified (how)
+
+Driven end-to-end in a real browser against the live Cloud Run backend, not asserted from a successful build:
+- Registration submitted with geolocation **blocked** — succeeded via the Kuching centroid fallback, and the farm was confirmed present in Cloud SQL by querying `/farms` afterwards (`Kebun Saya | lat 1.5533 lon 110.3592`).
+- `Lihat ladang demo` → the full dashboard rendered: real rain pulse (**20 mm, Isnin, 1 hari lagi** — live weather, not seed data), the advisor card, and the terrain model showing all 6 blocks correctly ranked #1→#6 hulu-to-hilir with downhill flow arrows.
+- CORS preflight from the hosting origin to Cloud Run returned 200, and the deployed bundle was confirmed to contain the current build by grepping `main.dart.js` over the network.
+- `flutter analyze`: 0 new issues across all changes (same 5 pre-existing `info` items).
+
+### Known gaps
+
+- **The walk/capture flow still cannot complete in a browser** without granted geolocation — `TANDA BLOK` needs a real fix. Registration degrades; block capture cannot, since a block's position is its actual data. Web is therefore a *viewing* surface for the dashboard, not a substitute for the APK. The demo entry point exists precisely because of this.
+- Browser HTTP caching served a stale `main.dart.js` for several minutes after a deploy, which briefly looked like a failed deployment during testing. `firebase.json` sets `max-age=3600` on JS. **Hard-reload after deploying, and do not trust a screenshot taken immediately after** — verify with a `cache: 'reload'` fetch instead.
+- The 3D terrain remains Android-only. If a browser-based 3D view is ever wanted, `terrain.html` is already a standalone page and could be embedded via `HtmlElementView` + an iframe rather than by porting the scene.
 
 ---

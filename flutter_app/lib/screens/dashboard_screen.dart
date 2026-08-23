@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -358,15 +359,33 @@ class _TerrainCard extends StatelessWidget {
             style: AppText.sans(size: 11, color: AppColors.oliveLight)
                 .copyWith(fontStyle: FontStyle.italic)),
         const SizedBox(height: 20),
-        Terrain3DView(
-          nodes: data.terrainNodes,
-          edges: data.terrainEdges,
-          labels: labels,
-          profileBuilder: (blockId) => _BlockProfile(
-            block: data.blocks.firstWhere((b) => b.blockId == blockId),
-            action: data.topAction?.blockId == blockId ? data.topAction : null,
+        // webview_flutter has no web implementation, so the 3D scene cannot
+        // run in a browser build. TerrainCanvas -- the 2D flow diagram kept
+        // deliberately as a fallback when the 3D view replaced it -- takes
+        // an identical set of arguments, so this is a straight swap rather
+        // than a second implementation to maintain. Android is unaffected:
+        // kIsWeb is a compile-time constant there, so the APK still gets the
+        // 3D view and this branch is tree-shaken out entirely.
+        if (kIsWeb)
+          TerrainCanvas(
+            nodes: data.terrainNodes,
+            edges: data.terrainEdges,
+            labels: labels,
+            profileBuilder: (blockId) => _BlockProfile(
+              block: data.blocks.firstWhere((b) => b.blockId == blockId),
+              action: data.topAction?.blockId == blockId ? data.topAction : null,
+            ),
+          )
+        else
+          Terrain3DView(
+            nodes: data.terrainNodes,
+            edges: data.terrainEdges,
+            labels: labels,
+            profileBuilder: (blockId) => _BlockProfile(
+              block: data.blocks.firstWhere((b) => b.blockId == blockId),
+              action: data.topAction?.blockId == blockId ? data.topAction : null,
+            ),
           ),
-        ),
       ]),
     );
   }
