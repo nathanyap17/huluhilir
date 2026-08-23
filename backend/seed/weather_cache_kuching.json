@@ -1,0 +1,299 @@
+﻿{
+    "value":  [
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-25",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-24",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-23",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-22",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-21",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-20",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Hujan di beberapa tempat",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Ds504",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-19",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Jerebu",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-25",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-24",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-23",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir di beberapa tempat",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir di beberapa tempat",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-22",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-21",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-20",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Jerebu",
+                      "night_forecast":  "Hujan di beberapa tempat",
+                      "summary_forecast":  "Hujan di beberapa tempat",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Dv501",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-19",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Jerebu",
+                      "night_forecast":  "Jerebu",
+                      "summary_forecast":  "Jerebu",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-25",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-24",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-23",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Ribut petir",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Ribut petir",
+                      "summary_when":  "Petang",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-22",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-21",
+                      "morning_forecast":  "Tiada Hujan",
+                      "afternoon_forecast":  "Tiada Hujan",
+                      "night_forecast":  "Tiada Hujan",
+                      "summary_forecast":  "Tiada Hujan",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-20",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Ribut petir",
+                      "night_forecast":  "Hujan",
+                      "summary_forecast":  "Ribut petir",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  },
+                  {
+                      "location":  {
+                                       "location_id":  "Tn187",
+                                       "location_name":  "Kuching"
+                                   },
+                      "date":  "2026-08-19",
+                      "morning_forecast":  "Jerebu",
+                      "afternoon_forecast":  "Ribut petir",
+                      "night_forecast":  "Jerebu",
+                      "summary_forecast":  "Ribut petir",
+                      "summary_when":  "Sepanjang Hari",
+                      "min_temp":  24,
+                      "max_temp":  34
+                  }
+              ],
+    "Count":  21
+}
