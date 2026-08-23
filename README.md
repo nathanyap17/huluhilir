@@ -73,7 +73,7 @@ Loop-termination checks are **deterministic Python querying the database**, neve
 | Agent | Google ADK + LiteLLM |
 | LLM | **Local:** Ollama (`qwen2.5:14b`) · **Cloud:** Vertex AI (`gemini-2.5-flash`) |
 | Storage | SQLAlchemy 2.0 async + SQLite (`aiosqlite`) |
-| Diagnosis | MobileNetV3-Small → ONNX, 6 classes, macro F1 **0.934** |
+| Diagnosis | MobileNetV3-Small → ONNX, 6 classes, macro F1 **0.934** on held-out data (see caveat below) |
 | 3D terrain | Three.js in an embedded WebView, IDW height field |
 | Deploy | **Local:** Docker Compose · **Cloud:** Cloud Run + Vertex AI |
 
@@ -100,11 +100,15 @@ These are product commitments from the submitted proposal, held even where a sho
 
 | | |
 |---|---|
+| **Landing page + app** | **https://sfws-aicc-workspace-1.web.app** |
+| App directly | https://sfws-aicc-workspace-1.web.app/app/ |
 | API | https://huluhilir-api-mfrzixfqeq-as.a.run.app |
 | Interactive docs | [`/docs`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs) |
 | Readiness + seed state | [`/health/ready`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/health/ready) |
 
-Cloud Run (`asia-southeast1`) · Vertex AI `gemini-2.5-flash` · Cloud SQL Postgres · Google Cloud TTS.
+Open the app and tap **"Lihat ladang demo"** to reach the dashboard without walking a farm.
+
+Cloud Run (`asia-southeast1`) · Vertex AI `gemini-2.5-flash` · Cloud SQL Postgres · Google Cloud TTS · Firebase Hosting.
 Authentication throughout is the service's own service account — there is no API key in this repository or in its configuration.
 
 ---
@@ -163,6 +167,8 @@ docs/             specification, data model, build log, validation checklist
 Built during a 24-hour window (23–24 Aug 2026) on-site at TDV Kuching.
 
 The demo farm is synthetic (a placeholder near Kuching) so the pipeline is demonstrable; the spread model is physically motivated but **not field-validated**, which is why every risk figure it emits is flagged as an estimate.
+
+**On the classifier's 0.934 macro F1.** That is a real measurement of the MobileNetV3-Small on its own held-out test set, and nothing more. Probing the exported model shows it confidently wrong on inputs it should reject outright — a solid black image returns `healthy_leaf` at 0.78 — and every plausible preprocessing variant reproduces that, which locates the problem in the weights rather than the wiring. It was trained on roughly 530 originals, largely generated rather than photographed. **It does not generalise to real field photos, and the 0.934 should not be read as field accuracy.** L1 is therefore presented as an early-warning prompt to go and inspect a vine, never as a diagnosis. A vision-model backend exists behind `CLASSIFIER_BACKEND` as the intended replacement; it is not yet working and the deployed path remains the CNN.
 
 ## Licence
 

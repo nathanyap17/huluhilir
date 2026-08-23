@@ -9,7 +9,7 @@
 /// site, so this stays a relative path and keeps working if the domain
 /// changes.
 export const APP_URL = '/app/';
-export const REPO_URL = 'https://github.com/nathanyapjiade/huluhilir';
+export const REPO_URL = 'https://github.com/nathanyap17/huluhilir';
 export const API_DOCS_URL = 'https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs';
 
 export const STATS = [
@@ -51,7 +51,7 @@ export const LAYERS = [
   {
     id: 'L1',
     title: 'Diagnosis — MobileNetV3-Small',
-    body: 'Six classes, trained to catch collar lesions: the dark, water-soaked tissue at the stem base that is the earliest treatable signature. By the time leaves yellow, the vine is usually already lost. Macro F1 0.934.',
+    body: 'Six classes, trained to catch collar lesions: the dark, water-soaked tissue at the stem base that is the earliest treatable signature. By the time leaves yellow, the vine is usually already lost. Macro F1 0.934 on our held-out test set — a figure we report as measured, not as field accuracy: the model was trained on a few hundred largely synthetic images and generalises poorly to real photographs, so L1 is treated as a prompt to go and look, never as a diagnosis.',
   },
   {
     id: 'L2',
