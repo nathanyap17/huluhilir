@@ -60,13 +60,30 @@ async def _walk_three_blocks(http, barometer: bool = False, baro_values=None):
 
 
 @pytest.mark.asyncio
-async def test_minimal_tier_asks_all_adjacent_pairs(client):
+async def test_minimal_tier_asks_every_distinct_pair(client):
+    """No barometer -> full pairwise, C(n, 2).
+
+    This previously asserted n-1 *adjacent* pairs, which was wrong: without
+    an altitude sensor the capture order is just the order the farmer walked
+    in, so comparing neighbours in that arbitrary sequence establishes no
+    ordering at all. Full pairwise is the honest cost, and it also makes
+    contradictory answers (a > b, b > c, c > a) detectable.
+    """
     http, _ = client
     farm, block_ids = await _walk_three_blocks(http, barometer=False)
 
     resp = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
     assert resp["elevation_tier"] == "minimal"
-    assert len(resp["questions"]) == 2  # n-1 for 3 blocks
+
+    n = len(block_ids)
+    assert len(resp["questions"]) == n * (n - 1) // 2  # C(3,2) = 3
+
+    # Every pair distinct, and no block ever compared against itself.
+    seen = {
+        frozenset((q["block_a_id"], q["block_b_id"])) for q in resp["questions"]
+    }
+    assert len(seen) == len(resp["questions"])
+    assert all(len(pair) == 2 for pair in seen)
 
 
 @pytest.mark.asyncio

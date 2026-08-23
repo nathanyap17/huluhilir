@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     cnn_preprocess_path: str = "../classifier/best-model/preprocess.json"
     cnn_model_version: str = "huluhilir_l1_v1"
     confidence_threshold: float = 0.60
+    # Minimum gap between the top two classes before a prediction is treated
+    # as decided. Guards the "0.40 vs 0.36" case that an absolute threshold
+    # alone waves through. See app/tools/diagnose.py.
+    confidence_margin: float = 0.15
 
 
 settings = Settings()

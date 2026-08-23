@@ -9,6 +9,9 @@ import 'package:record/record.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../brand.dart';
+import '../tier_banner.dart';
+import '../walk_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../recording_io.dart';
@@ -235,6 +238,9 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     }
 
     final accuracy = _latestPosition?.accuracy;
+    // Tier comes from the farm record, which was set by the silent probe at
+    // registration -- never re-asked and never a choice (PROJECT_SPEC §4).
+    final hasBarometer = ref.watch(sessionProvider).farm?.barometerAvailable ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Jalan Ladang'), actions: const [BrandLogoAction()]),
@@ -250,10 +256,16 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             Text(
               accuracy == null
                   ? 'Menunggu GPS...'
-                  : 'Ketepatan GPS: ${accuracy.toStringAsFixed(0)} m'
-                      '${_baroRelM != null ? ' · Tinggi: ${_baroRelM!.toStringAsFixed(1)} m' : ''}',
+                  : 'Ketepatan GPS: ${accuracy.toStringAsFixed(0)} m',
               style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
             ),
+            // Live relative altitude, so a farmer on an OPTIMISED phone can
+            // see the sensor is actually tracking them uphill and downhill
+            // rather than trusting that it is.
+            if (hasBarometer) ...[
+              const SizedBox(height: 4),
+              AltitudeReadout(relativeM: _baroRelM),
+            ],
             Text(
               _offline
                   ? 'Luar talian — ${_unflushed.length} sampel menunggu'
@@ -263,7 +275,25 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
                 color: _offline ? Colors.orange.shade800 : Colors.grey.shade600,
               ),
             ),
+            const SizedBox(height: 12),
+            // States the tier plainly, and on the minimal path says how many
+            // comparison questions the walk will end with -- C(n,2) grows
+            // fast and is better known before walking than discovered after.
+            TierBanner(available: hasBarometer, blockCount: _captured.length),
           ]),
+        ),
+        // Orientation while walking: the track so far plus what is already
+        // marked. Additive only -- capture never depends on a tile loading.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: WalkMap(
+            track: [for (final s in _recent) LatLng(s.position.latitude, s.position.longitude)],
+            blocks: _captured,
+            current: _recent.isEmpty
+                ? null
+                : LatLng(_recent.last.position.latitude, _recent.last.position.longitude),
+            height: 230,
+          ),
         ),
         Expanded(
           child: _captured.isEmpty

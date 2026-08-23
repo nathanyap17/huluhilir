@@ -52,6 +52,8 @@ dependencies:
   webview_flutter: ^4.14.1
   # Web-only: iframe embed for the 3D terrain (lib/terrain_embed_web.dart).
   web: ^1.1.1
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

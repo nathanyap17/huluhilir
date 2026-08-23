@@ -175,7 +175,6 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
               segments: const [
                 ButtonSegment(value: 'collar', label: Text('Pangkal')),
                 ButtonSegment(value: 'leaf', label: Text('Daun')),
-                ButtonSegment(value: 'whole_vine', label: Text('Pokok')),
               ],
               selected: {_captureTarget},
               onSelectionChanged: (s) => setState(() => _captureTarget = s.first),

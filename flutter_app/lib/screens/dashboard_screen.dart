@@ -2,15 +2,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../block_profile.dart';
 import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../speech.dart';
 import '../terrain_3d_view.dart';
 import '../terrain_3d_web_view.dart';
-import '../terrain_canvas.dart' show TerrainCanvas; // stateColour/stateLabelMs, and a safe 2D fallback
 import '../theme.dart';
 import 'diagnosis_screen.dart';
+import 'settings_sheet.dart';
 import 'tanya_sheet.dart';
 
 /// docs/PROJECT_SPEC.md §7. Section order is deliberate and matches the spec:
@@ -131,8 +132,11 @@ class _Header extends StatelessWidget {
         GestureDetector(
           onLongPress: onResetLongPress,
           child: IconButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tetapan — tekan lama untuk tetapkan semula ladang')),
+            onPressed: () => showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (_) => const SettingsSheet(),
             ),
             icon: const Icon(Icons.settings_outlined, color: AppColors.olive),
           ),
@@ -387,7 +391,7 @@ class _TerrainCard extends StatelessWidget {
             nodes: data.terrainNodes,
             edges: data.terrainEdges,
             labels: labels,
-            profileBuilder: (blockId) => _BlockProfile(
+            profileBuilder: (blockId) => BlockProfileCard(
               block: data.blocks.firstWhere((b) => b.blockId == blockId),
               action: data.topAction?.blockId == blockId ? data.topAction : null,
             ),
@@ -397,7 +401,7 @@ class _TerrainCard extends StatelessWidget {
             nodes: data.terrainNodes,
             edges: data.terrainEdges,
             labels: labels,
-            profileBuilder: (blockId) => _BlockProfile(
+            profileBuilder: (blockId) => BlockProfileCard(
               block: data.blocks.firstWhere((b) => b.blockId == blockId),
               action: data.topAction?.blockId == blockId ? data.topAction : null,
             ),
@@ -413,65 +417,6 @@ class _TerrainCard extends StatelessWidget {
 /// history" list) needs a history endpoint that doesn't exist yet -- this
 /// shows the current state and, if there is one, the live top action for this
 /// block, rather than fabricating a longer history.
-class _BlockProfile extends StatelessWidget {
-  final BlockModel block;
-  final RecommendationModel? action;
-  const _BlockProfile({required this.block, this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    final colour = TerrainCanvas.stateColour(block.currentState);
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        height: 90,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [colour.withValues(alpha: 0.55), colour],
-          ),
-        ),
-        child: Align(
-          alignment: Alignment.bottomLeft,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text(block.label,
-                style: AppText.sans(size: 16, weight: FontWeight.w700, color: Colors.white)),
-            Text('#${block.elevationRank} · ${TerrainCanvas.stateLabelMs(block.currentState)}',
-                style: AppText.sans(size: 12, color: Colors.white.withValues(alpha: 0.9))),
-          ]),
-        ),
-      ),
-      Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text('Saliran: ${block.drainage}', style: AppText.sans(size: 12)),
-          if (block.vineCount != null)
-            Text('Bilangan pokok: ${block.vineCount}', style: AppText.sans(size: 12)),
-          if (action != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.cardOffWhite,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('TINDAKAN DISYORKAN',
-                    style: AppText.sans(size: 9, weight: FontWeight.w700, color: AppColors.olive)),
-                const SizedBox(height: 4),
-                Text(action!.reasonMs, style: AppText.sans(size: 12)),
-              ]),
-            ),
-          ],
-        ]),
-      ),
-    ]);
-  }
-}
-
 class _NeighbourConsentCard extends StatelessWidget {
   final int count;
   const _NeighbourConsentCard({required this.count});

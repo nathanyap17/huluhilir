@@ -214,6 +214,16 @@ class ApiClient {
     return Map<String, dynamic>.from(r.data);
   }
 
+  /// Photo, voice label and observation history for one block.
+  ///
+  /// Separate from the dashboard payload on purpose -- this is only wanted
+  /// when a farmer actually taps a block, and folding it in would make every
+  /// dashboard load heavier on a slow connection.
+  Future<Map<String, dynamic>> blockDetail(String blockId) async {
+    final r = await _dio.get('/blocks/$blockId/detail');
+    return Map<String, dynamic>.from(r.data);
+  }
+
   // ---- advisor (Tanya) -----------------------------------------------------
 
   /// Free-form question answered over retrieval.

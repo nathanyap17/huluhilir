@@ -100,13 +100,49 @@ class SessionNotifier extends StateNotifier<SessionState> {
     state = state.copyWith(farm: await _api.getFarm(farmId));
   }
 
-  Future<void> reset() async {
+  /// Forget this device's session. Identical mechanics to reset() today --
+  /// both clear the local pointers and nothing server-side -- but kept as a
+  /// separate method because they are different promises to the farmer:
+  /// "log out" says the farm is still there, "reset" says start over. If
+  /// server-side account deletion ever exists, only reset() should call it.
+  Future<void> signOut() => _clearLocalSession();
+
+  Future<void> reset() => _clearLocalSession();
+
+  Future<void> _clearLocalSession() async {
     state = const SessionState(restoring: false);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kUserId);
     await prefs.remove(_kFarmId);
   }
 }
+
+/// Whether the dashboard surfaces rain-pulse warnings.
+///
+/// A local display preference only: it does not subscribe to push, and it
+/// never affects neighbour alerts, which stay drafted and farmer-approved
+/// regardless (huluhilir-rules §5). Defaults ON -- a rain pulse is the one
+/// thing worth interrupting someone for.
+class RainAlertsNotifier extends StateNotifier<bool> {
+  RainAlertsNotifier() : super(true) {
+    _restore();
+  }
+
+  static const _key = 'huluhilir.rain_alerts';
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) state = prefs.getBool(_key) ?? true;
+  }
+
+  Future<void> set(bool value) async {
+    state = value;
+    (await SharedPreferences.getInstance()).setBool(_key, value);
+  }
+}
+
+final rainAlertsEnabledProvider =
+    StateNotifierProvider<RainAlertsNotifier, bool>((ref) => RainAlertsNotifier());
 
 final sessionProvider = StateNotifierProvider<SessionNotifier, SessionState>(
   (ref) => SessionNotifier(ref.watch(apiClientProvider)),

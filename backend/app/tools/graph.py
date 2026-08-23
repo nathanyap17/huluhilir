@@ -9,6 +9,7 @@ ALWAYS wins over any sensor, and every disagreement is written to
 `elevation_conflicts` with `resolution="farmer"` rather than silently
 resolved. Nothing in this module can auto-override a farmer.
 """
+import itertools
 import math
 from statistics import median
 from typing import Iterable, Optional
@@ -111,14 +112,26 @@ def resolve_elevation_ranks(
 def pairs_needing_farmer_input(
     block_ids: list[str], baro_rel_by_block: Optional[dict[str, float]]
 ) -> list[tuple[str, str]]:
-    """Which adjacent pairs must the farmer be asked about?
+    """Which pairs must the farmer be asked about?
 
-    MINIMAL (no barometer): all adjacent pairs, n-1 questions.
-    OPTIMISED: only pairs the sensor cannot separate (Δh < 2.0 m).
-    docs/PROJECT_SPEC.md §4.
+    MINIMAL (no barometer): **every distinct pair** -- C(n, 2) questions.
+    OPTIMISED (barometer): only the pairs the sensor cannot separate
+    (Δh < 2.0 m). docs/PROJECT_SPEC.md §4.
+
+    The minimal path previously asked only the n-1 *adjacent* pairs, which is
+    only sufficient when the blocks already arrive in a trustworthy order.
+    Without a barometer there is no such order -- capture sequence is just the
+    order the farmer happened to walk in -- so comparing neighbours in that
+    arbitrary sequence establishes nothing. Full pairwise is the honest cost
+    of having no altitude sensor, and it additionally makes contradictions
+    detectable (a > b, b > c, c > a), which a chain of n-1 answers cannot
+    surface at all.
+
+    This is quadratic: 6 blocks = 15 questions, 10 blocks = 45. That is a real
+    burden on the farmer, and is exactly why the barometer path exists.
     """
     if not baro_rel_by_block:
-        return [(block_ids[i], block_ids[i + 1]) for i in range(len(block_ids) - 1)]
+        return list(itertools.combinations(block_ids, 2))
 
     by_height = sorted(block_ids, key=lambda b: -baro_rel_by_block.get(b, 0.0))
     ambiguous = []

@@ -545,3 +545,78 @@ Driven in a real browser against the live stack, not inferred from builds: 3D te
 - Web still cannot complete the walk (block capture needs a real GPS fix), and the browser blocks geolocation by default — registration degrades to a district centroid, capture cannot.
 
 ---
+
+## [Polish pass] Barometer tier, walk map, settings, block history — and an L1 model finding
+
+### 1 · Barometer: detection was right, the arithmetic was not
+
+Detection and altitude tracking already worked — baseline pressure captured before walking, continuous listening, `baro_rel_m` computed per block. What was missing was that **nothing ever told the farmer which path they were on**, so two very different setup experiences looked like one flow behaving inconsistently. `TierBanner` now states it plainly (`Barometer dikesan` / `Tiada barometer`, OPTIMISED / MINIMAL) on both registration and the walk screen, and `AltitudeReadout` shows live relative altitude while walking so the sensor is visibly tracking rather than merely claimed to be.
+
+**The real defect was in `pairs_needing_farmer_input()`.** Without a barometer it asked only the **n−1 adjacent pairs**. That is only sufficient if the blocks already arrive in a trustworthy order — and without an altitude sensor they do not: capture order is just the order the farmer happened to walk in, so comparing neighbours in that arbitrary sequence establishes nothing. It now asks **every distinct pair, C(n, 2)**, which is the honest cost of having no sensor and additionally makes contradictions (a > b, b > c, c > a) detectable, which a chain of n−1 answers cannot surface at all.
+
+This is quadratic and the banner says so before the walk rather than after: 6 blocks = 15 questions, 10 blocks = 45. That burden **is** the argument for the barometer path.
+
+`test_minimal_tier_asks_all_adjacent_pairs` encoded the old behaviour and failed — correctly. Rewritten as `test_minimal_tier_asks_every_distinct_pair`, now also asserting the pairs are distinct and no block is compared with itself.
+
+### 2 · Map during the walk
+
+`WalkMap` (flutter_map + OpenStreetMap tiles): the GPS track so far, a numbered pin per captured block, and a live position marker. Auto-follows, and any manual pan releases the follow with a recentre button — yanking the camera back on every GPS tick makes a map unusable.
+
+It draws the walked path and marked points **only**. No boundary is drawn, inferred, or stored, because a polygon around someone's plot is precisely what huluhilir-rules §4 forbids on NCR land. Tiles are the one network-dependent part of the walk, so it is deliberately additive: the track and markers still render over an empty background and **nothing about capturing a block depends on a tile arriving**. OSM attribution is required by licence and is not decoration.
+
+### 3 · Settings
+
+The gear previously showed a snackbar telling the farmer to long-press it — a hint about a hidden gesture, not a setting. `SettingsSheet` now offers Tanya, a rain-alert toggle, log out, and reset. Reset keeps its confirmation *and* its long-press shortcut, because wiping a farm means re-walking the whole garden.
+
+`signOut()` and `reset()` are separate methods with identical mechanics today, deliberately: they are different promises ("your farm is still there" vs "start over"), and if server-side deletion ever exists only `reset()` should call it. The rain-alert toggle is a local display preference — it does not subscribe to push, and it never touches neighbour alerts, which stay drafted and farmer-approved regardless (§5).
+
+### 4 · Block profile: photo, history, voice label
+
+The old card rendered only fields already in the dashboard payload, so the photo, voice label and history had **nowhere to come from**. Added `GET /blocks/{id}/detail` and `BlockProfileCard`, which fetches on tap. Kept out of the dashboard payload on purpose: it is only wanted when a farmer actually taps a block, and folding it in would make every dashboard load heavier on a slow connection.
+
+The block's own photo is the card header — that is what makes a block recognisable to the person who marked it — behind a scrim so type stays readable, falling back to the state colour rather than a broken-image glyph. History rows show the class, date, confidence, and **an explicit "keyakinan rendah — periksa sendiri" when the call was uncertain**, which matters more than usual given the model finding below.
+
+The voice label is **played, never transcribed**. There is no ASR anywhere in this codebase, and that is exactly why an Iban label works here at all (§1). The old dead `_BlockProfile` was deleted rather than left beside the new one — two implementations of one card is how they drift.
+
+### 5 · L1 false positives — investigated properly; the wiring is fine, the model is not
+
+Reported: green healthy leaves classified as yellowed/wilted. **Everything I could check about incorporation is correct**, and I checked rather than assumed:
+
+- `best-model/huluhilir_l1.onnx` is distinct from `huluhilir_l1_baseline.onnx` (different SHA-256) — the best model *is* the one deployed.
+- ONNX IO is `[batch, 3, 224, 224] → [batch, 6]`, matching the pipeline.
+- Output is **raw logits** (sums to 0.14, has negatives), so applying softmax once is correct.
+- `labels.txt` order matches the documented class-index table in `L1_IMPLEMENTATION_LOG.md` exactly (`healthy_leaf` = 0 … `unrelated` = 5). An alphabetical-vs-declared mismatch would have shifted every prediction and was the first thing suspected; it is not present.
+- Preprocessing (224×224, ImageNet mean/std, RGB) matches `L1_MODEL_ROADMAP.md`.
+
+**Then I probed the model directly with flat colour fields, and the results are damning:**
+
+| input | prediction |
+|---|---|
+| solid black | `healthy_leaf` **0.78** |
+| solid brown | `healthy_leaf` **0.91** |
+| solid white | `foliar_yellowing` **0.73** |
+| solid green | `defoliation_wilt` **0.64** |
+| random noise | `unrelated` 0.31 |
+
+A sound model puts every one of those in `unrelated` with high confidence. Being *confidently* wrong on degenerate inputs is the signature of a model that never learned robust features.
+
+I then re-ran all five plausible preprocessing variants (RGB/BGR, ImageNet-normalised, 0–1, raw 0–255, [-1,1]). **Every variant still calls solid black `healthy_leaf`.** That excludes a preprocessing mismatch and locates the problem in the weights themselves — consistent with training on ~530 originals, largely AI-generated prompt batches, augmented 7×. Logit magnitudes are also small (max ≈ 2.2), i.e. a weakly-confident model throughout.
+
+**No code change fixes this.** What was added is a mitigation and is labelled as one: a **top-2 margin gate** (`confidence_margin = 0.15`) alongside the absolute threshold, so a ~0.40/0.36 split is treated as undecided instead of asserted. `below_threshold` now means "uncertain by either test", and the UI already routes that to *periksa sendiri*.
+
+**The real fix is retraining on real field photographs.** Until then L1 should be presented as an early-warning prompt to go and look, never as a diagnosis — which is what huluhilir-rules §9 required anyway.
+
+`pokok` (`whole_vine`) removed from the capture-target selector as requested. The enum value is retained so existing observation rows stay readable; nothing offers it any more.
+
+### Verified (how)
+
+22 backend tests pass (the live-LLM arbitration test excluded — it needs an idle GPU). `flutter analyze` back to the 4 pre-existing info items. Model claims above come from direct probes of the deployed ONNX file, not from documentation.
+
+### Known gaps
+
+- **The L1 model itself is the outstanding risk.** Everything around it is correct; it needs real-photo retraining, and no amount of threshold tuning substitutes.
+- Map tiles need network. Offline the walk still works, but the map is blank.
+- `signOut()` clears only local state; there is no server-side session to end.
+- The pairwise question count is honest but heavy at scale — 10 blocks is 45 comparisons. If that proves unusable in the field, the fix is a smarter sort (merge-insertion needs ~n log n comparisons), not a return to the n−1 chain that never established an order.
+
+---

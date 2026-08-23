@@ -81,13 +81,24 @@ def diagnose_leaf(observation_id: str, image_uri: str, capture_target: CaptureTa
     second_class = ranked[1][0] if len(ranked) > 1 else None
     inference_ms = int((time.perf_counter() - start) * 1000)
 
+    # Two gates, not one. Absolute confidence alone lets through calls where
+    # the model split ~0.40/0.36 between two classes -- nominally "confident"
+    # but in reality undecided. The margin gate catches exactly those.
+    #
+    # This is a MITIGATION, not a fix. Probing the deployed model with flat
+    # colour fields showed it confidently wrong (solid black -> healthy_leaf
+    # 0.78), which no threshold can repair; it is a property of a model
+    # trained on ~530 largely-generated images. See docs/BUILD_LOG.md.
+    margin = confidence - (ranked[1][1] if len(ranked) > 1 else 0.0)
+    uncertain = confidence < settings.confidence_threshold or margin < settings.confidence_margin
+
     return DiagnoseLeafResult(
         observation_id=observation_id,
         predicted_class=predicted_class,
         confidence=round(confidence, 4),
         all_scores={label: round(score, 4) for label, score in ranked},
         second_class=second_class,
-        below_threshold=confidence < settings.confidence_threshold,
+        below_threshold=uncertain,
         model_version=settings.cnn_model_version,
         inference_ms=inference_ms,
         mismatch_flag=check_capture_mismatch(capture_target, predicted_class),

@@ -184,8 +184,11 @@ async def capture_block(
 async def get_elevation_questions(farm_id: str, session: AsyncSession = Depends(get_session)) -> dict:
     """Which block pairs must the farmer be asked to compare?
 
-    MINIMAL: every adjacent pair (n-1 questions).
-    OPTIMISED: only pairs the barometer cannot separate (Δh < 2.0 m).
+    MINIMAL (no barometer): every distinct pair -- C(n, 2) questions.
+    OPTIMISED (barometer): only pairs the sensor cannot separate (Δh < 2.0 m).
+
+    See pairs_needing_farmer_input() for why the minimal path is full
+    pairwise rather than the n-1 adjacent comparisons it used to ask.
     """
     farm = await session.get(Farm, farm_id)
     if farm is None:
@@ -261,4 +264,64 @@ async def resolve_elevation(
         "edges_created": len(edges),
         "conflicts_logged": len(conflicts),
         "setup_completed": True,
+    }
+
+
+@router.get("/blocks/{block_id}/detail")
+async def block_detail(block_id: str, session: AsyncSession = Depends(get_session)) -> dict:
+    """Everything the terrain profile card needs about one block.
+
+    Kept separate from the dashboard payload deliberately: photo URIs, voice
+    labels and the full observation history are only wanted when a farmer
+    actually taps a block, and folding them into the dashboard would make the
+    landing request heavier for every user on a slow connection.
+
+    Returns no ownership or boundary data (huluhilir-rules §4) -- a block is a
+    label, a point, and a rank.
+    """
+    from app.models.diagnosis import Diagnosis, Observation
+
+    block = await session.get(Block, block_id)
+    if block is None:
+        raise HTTPException(404, "block not found")
+
+    rows = (
+        await session.execute(
+            select(Observation, Diagnosis)
+            .outerjoin(Diagnosis, Diagnosis.observation_id == Observation.observation_id)
+            .where(Observation.block_id == block_id)
+            .order_by(Observation.captured_at.desc())
+            .limit(20)
+        )
+    ).all()
+
+    history = [
+        {
+            "observation_id": obs.observation_id,
+            "image_uri": obs.image_uri,
+            "capture_target": obs.capture_target,
+            "captured_at": obs.captured_at.isoformat(),
+            "predicted_class": diag.predicted_class if diag else None,
+            "confidence": diag.confidence if diag else None,
+            # Surfaced so the card can show uncertainty rather than assert a
+            # class the model was not confident about (huluhilir-rules §9).
+            "below_threshold": (diag.confidence < 0.60) if diag else None,
+        }
+        for obs, diag in rows
+    ]
+
+    return {
+        "block_id": block.block_id,
+        "label": block.label,
+        "photo_uri": block.photo_uri,
+        # An audio sticker, replayed beside the photo. Never transcribed --
+        # there is no ASR anywhere in this codebase (huluhilir-rules §1).
+        "voice_label_uri": block.voice_label_uri,
+        "elevation_rank": block.elevation_rank,
+        "drainage": block.drainage,
+        "vine_count": block.vine_count,
+        "current_state": block.current_state,
+        "baro_rel_m": block.baro_rel_m,
+        "marked_at": block.marked_at.isoformat() if block.marked_at else None,
+        "observations": history,
     }

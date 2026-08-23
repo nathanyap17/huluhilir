@@ -204,7 +204,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           barometer.when(
             data: (available) => _TierBanner(available: available),
             loading: () => const LinearProgressIndicator(),
-            error: (_, __) => const _TierBanner(available: false),
+            error: (error, stack) => const _TierBanner(available: false),
           ),
           if (_error != null) ...[
             const SizedBox(height: 16),
