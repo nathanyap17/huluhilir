@@ -137,10 +137,19 @@ class _TerrainCanvasState extends State<TerrainCanvas> {
               ),
             Positioned(top: 12, left: 12, child: _LegendOverlay()),
             if (_openProfileBlockId != null && widget.profileBuilder != null)
+              // left AND right, not right alone. With only `right` set the card
+              // gets UNBOUNDED width, and BlockProfileCard's header uses
+              // `SizedBox(width: double.infinity)` — so it laid out wider than
+              // the Stack, putting its close button outside the parent's
+              // bounds. Flutter does not hit-test outside those bounds, so the
+              // X was visible (ClipRRect hid the overflow) but untappable.
+              // Same fix applied in terrain_3d_view.dart.
               Positioned(
                 top: 12,
+                left: 12,
                 right: 12,
-                child: _ProfileOverlay(
+                child: Material(
+                  color: Colors.transparent,
                   child: widget.profileBuilder!(
                     _openProfileBlockId!,
                     () => setState(() => _openProfileBlockId = null),
