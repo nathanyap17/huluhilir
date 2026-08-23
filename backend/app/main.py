@@ -3,13 +3,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.db import init_db
+from app.db import SessionLocal, init_db
 from app.routers import agent, dashboard, diagnosis, health, media, setup, tools
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    # Idempotent -- each function checks for existing rows before inserting.
+    # Runs on every startup because Cloud Run's filesystem is ephemeral: a
+    # fresh instance boots with an empty DB, and "reseeded on redeploy" is
+    # the documented cloud behaviour (docs/CLAUDE.md § Two deployment
+    # targets), not something a separate init job handles. A no-op locally
+    # once the dev DB is already seeded.
+    from seed.seed import seed_demo_farm, seed_knowledge, seed_speech, seed_treatments
+
+    async with SessionLocal() as session:
+        await seed_treatments(session)
+        await seed_knowledge(session)
+        await seed_speech(session)
+        await seed_demo_farm(session)
+        await session.commit()
     yield
 
 

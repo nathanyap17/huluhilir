@@ -1,0 +1,20 @@
+# Cloud Run build context is the repo root (see root Dockerfile). Without
+# this, `gcloud run deploy --source .` uploads the entire repo on every
+# deploy -- the Flutter app, git history, and local venvs, none of which the
+# backend image needs.
+.git/
+flutter_app/
+docs/
+sandbox/
+*.md
+
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/huluhilir.db
+backend/media/
+
+classifier/huluhilir_l1_baseline.onnx
+classifier/*.md
+classifier/*.log

@@ -347,3 +347,55 @@ Following the viability spike above, built the actual terrain the spec describes
 - Selection/hit-testing was only verified with 4 blocks at a fairly loose spread; a farm with many more, more tightly-packed blocks has not been tested and could stress both the IDW layout's jitter-based separation and raycast hit-target overlap.
 
 ---
+
+## [Cloud Deploy] Cloud Run + Vertex AI — classifier bundling, auto-seed, wrong model name
+
+Followed the explicit sequencing from earlier in the day (Block D → local test → cloud gate) and the account a personal Google account / project `sfws-aicc-workspace-1` established after the original UNIMAS-org-policy and Firebase-403 blockers (see earlier entries). User preferred Vertex AI over the Gemini API directly, since Cloud Run's own service account can authenticate to Vertex with no API key to manage. Before running `deploy-cloud.sh` as it existed, re-derived it against PLAN.md/CLAUDE.md and found three gaps that would have made the deploy silently broken or incomplete.
+
+### Gap 1 — the deployed image would not contain the CNN model
+
+`backend/Dockerfile` (used by `docker-compose.yml` for LOCAL) works because `docker-compose.yml` bind-mounts `./classifier:/classifier:ro` at *run* time — the image itself never contains the model. `deploy-cloud.sh` ran `gcloud run deploy --source ./backend`, i.e. a build context scoped to `backend/`, which cannot see the sibling `classifier/` directory at all. Deployed as-is, every diagnosis call would have failed at runtime with a missing-file error, not caught by anything short of actually invoking `/diagnosis` against the live service.
+
+**Fix:** added a new repo-root `Dockerfile` (kept separate from `backend/Dockerfile` rather than merged, since the two have genuinely different build contexts and only Cloud Run needs the model baked in) that `COPY`s both `backend/` and `classifier/best-model/`, and points `CNN_MODEL_PATH`/`CNN_LABELS_PATH`/`CNN_PREPROCESS_PATH` at the new in-image location (`config.py`'s defaults assume `cwd=backend/` with `classifier/` as a sibling, which is only true locally). Added `.dockerignore` at the repo root scoped to this new Dockerfile's context, excluding `.git/`, `flutter_app/`, `docs/`, `sandbox/`, local venvs/caches, and the non-`best-model` classifier artifacts — without it, `--source .` uploads the entire repo (including git history and the Flutter tree) on every deploy. Updated `deploy-cloud.sh` to `--source .` (repo root) and added `--memory 1Gi` (CNN inference plus ADK/litellm needs more than Cloud Run's 512Mi default).
+
+### Gap 2 — cloud DB starts empty on every fresh instance, with no seed step
+
+Cloud Run's filesystem is ephemeral per instance; `DATABASE_URL=sqlite+aiosqlite:////tmp/huluhilir.db` starts empty every cold start. Nothing in the existing app called the seed functions except a manual local script.
+
+**Fix:** `backend/app/main.py`'s `lifespan` now calls `seed_treatments`/`seed_knowledge`/`seed_speech`/`seed_demo_farm` on every startup, after `init_db()`. Confirmed idempotent (each seed function already checked for existing rows before inserting — this was true before this change, just never invoked automatically). This makes CLOUD's behaviour "reseeded on every redeploy," which is acceptable and documented in `CLAUDE.md`'s two-deployment-targets table; it is a no-op LOCAL since the dev DB is already seeded there.
+
+### Gap 3 — wrong Vertex AI model name, diagnosed via real logs and a direct API probe (not assumed)
+
+First deploy (with gaps 1-2 already fixed) came up healthy, served `/health` and the full `setup → dashboard` flow correctly, but `/agent/run` failed. This was **not** an IAM/auth problem — worth stating explicitly since that was the a priori suspicion going in (new service account, new API to call) and it would have been easy to spend the remaining time on IAM bindings that were never actually broken. Confirmed by reading the actual failure, not guessing:
+
+```bash
+gcloud run services logs read huluhilir-api --project sfws-aicc-workspace-1 --region asia-southeast1 --limit 100
+```
+
+showed a full `litellm`/ADK stack trace ending in `litellm.exceptions.NotFoundError` with the message `Publisher model projects/sfws-aicc-workspace-1/locations/asia-southeast1/publishers/google/models/gemini-2.0-flash was not found`. A 404 from Vertex's own publisher-model endpoint, after auth succeeded and the request reached Google, is model-availability, not permissions. Confirmed which model names actually resolve for this project/region by probing Vertex's REST API directly rather than trying names one at a time against the full app stack:
+
+```bash
+TOKEN=$(gcloud auth print-access-token --account=a personal Google account)
+for MODEL in "gemini-2.0-flash-001" "gemini-2.0-flash" "gemini-2.5-flash" "gemini-1.5-flash-002" "gemini-1.5-flash"; do
+  curl -s -o /dev/null -w "%{http_code} $MODEL\n" -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: sfws-aicc-workspace-1" \
+    "https://us-central1-aiplatform.googleapis.com/v1/publishers/google/models/$MODEL"
+done
+```
+
+Only `gemini-2.5-flash` returned `200`; every 2.0 and 1.5 variant tried (including the "-001"/"-002" pinned releases) returned `404` for this project, in both `asia-southeast1` and `us-central1`. (User independently suggested trying `gemini-2.5-flash` mid-diagnosis, which matched what this probe had just found.)
+
+**Fix:** `gcloud run services update` with `LITELLM_MODEL=vertex_ai/gemini-2.5-flash` and `VERTEXAI_LOCATION=us-central1` (env-var-only update, no rebuild) confirmed working, then made permanent in `deploy-cloud.sh` via `VERTEX_LOCATION`/`GEMINI_MODEL` variables (defaults `us-central1`/`gemini-2.5-flash`), with a comment pointing back to this log entry so a future "let's just use gemini-2.0-flash, it's newer-numbered" doesn't silently reintroduce the 404. Vertex AI's model location (`us-central1`) is deliberately decoupled from Cloud Run's own region (`asia-southeast1`, kept for Sarawak latency) — they don't need to match, and forcing them to match is not what fixed this.
+
+### Verified (how)
+
+- `GET /health` on the live URL after each deploy.
+- Full `POST /setup` → `GET /farm/{id}/dashboard` round trip against the live service, confirming auto-seed produced usable treatment/knowledge/speech rows and the zero-photo-dashboard rule still holds with no diagnosis cycle run.
+- `POST /agent/run` with a trivial no-tool-call prompt — succeeded end-to-end (`status: "ok"`, `llm_model: "vertex_ai/gemini-2.5-flash"`, ~10s), confirming the full Vertex AI auth + model-resolution path.
+- `POST /agent/run` with a prompt requiring a real tool call (`get_weather`) — succeeded with `tools_called` correctly populated (real station data, `latency_ms: 193`), confirming Gemini 2.5 Flash's function-calling behaviour works through this ADK/LiteLLM path, not just plain text completion. This was checked separately from the trivial call because tool-calling reliability is a different capability than chat completion, and the only prior tool-calling confidence in this project (`test_agent_arbitration.py`) was against local Ollama/qwen2.5:14b — a different model with potentially different tool-calling characteristics.
+
+### Known gaps
+
+- Only single-tool-call arbitration has been verified against Vertex/gemini-2.5-flash so far — the full multi-tool arbitration sequence (diagnosis + weather + spread + treatment converging on one recommendation, the actual demo-critical path) has only been proven against local Ollama in `test_agent_arbitration.py`. If time allows, run that same test's scenario against the cloud URL before relying on it for a live demo.
+- Two Cloud Run URLs were returned across different commands (the deploy command's own stdout vs. a later `gcloud run services describe` call) — both route to the same service (Cloud Run's default domain plus its stable alias), but only one should be used consistently in the cloud-target APK build and shared with the team.
+
+---
