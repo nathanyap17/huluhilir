@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,8 +8,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:record/record.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
+import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
+import '../recording_io.dart';
 import 'elevation_screen.dart';
 
 /// Step ④ of setup: the walk loop (docs/PROJECT_SPEC.md §5).
@@ -170,10 +172,18 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
       final api = ref.read(apiClientProvider);
       final farm = ref.read(sessionProvider).farm!;
 
-      final photoUri = await api.uploadMedia(File(result.photoPath), contentType: 'image/jpeg');
+      final photoUri = await api.uploadMedia(
+        result.photoBytes,
+        contentType: 'image/jpeg',
+        filename: result.photoName,
+      );
       String? voiceUri;
-      if (result.voicePath != null) {
-        voiceUri = await api.uploadMedia(File(result.voicePath!), contentType: 'audio/mp4');
+      if (result.voiceBytes != null) {
+        voiceUri = await api.uploadMedia(
+          result.voiceBytes!,
+          contentType: 'audio/mp4',
+          filename: 'voice_label.m4a',
+        );
       }
 
       final block = await api.captureBlock(
@@ -219,7 +229,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Ralat')),
+        appBar: AppBar(title: const Text('Ralat'), actions: const [BrandLogoAction()]),
         body: Padding(padding: const EdgeInsets.all(20), child: Text(_error!)),
       );
     }
@@ -227,7 +237,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final accuracy = _latestPosition?.accuracy;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Jalan Ladang')),
+      appBar: AppBar(title: const Text('Jalan Ladang'), actions: const [BrandLogoAction()]),
       body: Column(children: [
         Container(
           width: double.infinity,
@@ -305,10 +315,13 @@ class _Sample {
 
 class _BlockDraft {
   final String label;
-  final String photoPath;
-  final String? voicePath;
+  // Bytes, not paths: dart:io's File is unavailable on web, and on web
+  // XFile.path is an opaque blob URL that cannot be read from disk anyway.
+  final Uint8List photoBytes;
+  final String photoName;
+  final Uint8List? voiceBytes;
   final String drainage;
-  _BlockDraft(this.label, this.photoPath, this.voicePath, this.drainage);
+  _BlockDraft(this.label, this.photoBytes, this.photoName, this.voiceBytes, this.drainage);
 }
 
 /// Photo + optional short label + optional voice recording.
@@ -328,8 +341,9 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
   final _labelController = TextEditingController();
   final _recorder = AudioRecorder();
 
-  String? _photoPath;
-  String? _voicePath;
+  Uint8List? _photoBytes;
+  String _photoName = 'block.jpg';
+  Uint8List? _voiceBytes;
   String _drainage = 'fair';
   bool _recording = false;
 
@@ -342,21 +356,39 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
 
   Future<void> _takePhoto() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85);
-    if (picked != null) setState(() => _photoPath = picked.path);
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _photoBytes = bytes;
+      _photoName = picked.name;
+    });
   }
 
   Future<void> _toggleRecording() async {
     if (_recording) {
-      final path = await _recorder.stop();
+      // stop() returns a path on mobile and a blob URL on web; read it back
+      // through the recorder's own stream instead of touching the filesystem,
+      // so the voice label works on both without a dart:io dependency.
+      final source = await _recorder.stop();
+      Uint8List? bytes;
+      if (source != null) {
+        try {
+          bytes = await readRecording(source);
+        } catch (_) {
+          // A lost voice label must never block capturing the block itself:
+          // it is an optional audio sticker, not required data.
+          bytes = null;
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _recording = false;
-        _voicePath = path;
+        _voiceBytes = bytes;
       });
     } else {
       if (!await _recorder.hasPermission()) return;
-      final dir = Directory.systemTemp.path;
-      final path = '$dir/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(), path: path);
+      await _recorder.start(const RecordConfig(), path: recordingTarget());
       setState(() => _recording = true);
     }
   }
@@ -375,9 +407,9 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
         const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: _takePhoto,
-          icon: Icon(_photoPath == null ? Icons.camera_alt : Icons.check_circle,
-              color: _photoPath == null ? null : Colors.green),
-          label: Text(_photoPath == null ? 'AMBIL GAMBAR' : 'Gambar diambil'),
+          icon: Icon(_photoBytes == null ? Icons.camera_alt : Icons.check_circle,
+              color: _photoBytes == null ? null : Colors.green),
+          label: Text(_photoBytes == null ? 'AMBIL GAMBAR' : 'Gambar diambil'),
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 10),
@@ -393,10 +425,10 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
         OutlinedButton.icon(
           onPressed: _toggleRecording,
           icon: Icon(_recording ? Icons.stop_circle : Icons.mic,
-              color: _recording ? Colors.red : (_voicePath != null ? Colors.green : null)),
+              color: _recording ? Colors.red : (_voiceBytes != null ? Colors.green : null)),
           label: Text(_recording
               ? 'BERHENTI RAKAM'
-              : (_voicePath != null ? 'Rakaman disimpan' : 'RAKAM NAMA (pilihan)')),
+              : (_voiceBytes != null ? 'Rakaman disimpan' : 'RAKAM NAMA (pilihan)')),
           style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
         ),
         const SizedBox(height: 14),
@@ -413,7 +445,7 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
         ),
         const SizedBox(height: 18),
         FilledButton(
-          onPressed: _photoPath == null
+          onPressed: _photoBytes == null
               ? null
               : () => Navigator.pop(
                     context,
@@ -421,8 +453,9 @@ class _BlockCaptureSheetState extends State<_BlockCaptureSheet> {
                       _labelController.text.trim().isEmpty
                           ? 'Blok'
                           : _labelController.text.trim(),
-                      _photoPath!,
-                      _voicePath,
+                      _photoBytes!,
+                      _photoName,
+                      _voiceBytes,
                       _drainage,
                     ),
                   ),

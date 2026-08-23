@@ -15,6 +15,7 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agent.advisor_agent import build_advisor_agent
 from app.agent.logging_callbacks import ToolCallLogger
 from app.agent.root_agent import build_root_agent
 from app.config import settings
@@ -166,3 +167,47 @@ async def run_root_agent(
         ))
 
     return agent_run
+
+
+async def run_advisor_question(session: AsyncSession, question: str) -> dict:
+    """Answer one free-form "Tanya" question via the Advisor agent.
+
+    Deliberately *not* persisted as an agent_run: agent_runs record decisions
+    that produced recommendations, and a farmer asking "what causes foot rot"
+    produced none. Mixing the two would corrupt the arbitration audit trail
+    that `tools_called` exists to evidence.
+
+    The Advisor's only tool is retrieve_knowledge, hard-scoped away from the
+    authoritative namespace, so this path structurally cannot emit a dose,
+    product, or timing (huluhilir-rules §2) -- that is enforced by what the
+    agent can reach, not by asking the model nicely.
+    """
+    tool_logger = ToolCallLogger()
+    advisor = build_advisor_agent(session, tool_logger=tool_logger)
+
+    adk_runner = InMemoryRunner(agent=advisor, app_name=APP_NAME)
+    user_id, session_id = "advisor_user", f"ask_{abs(hash(question)) % 10_000_000}"
+    await adk_runner.session_service.create_session(
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
+    )
+
+    answer = ""
+    async for event in adk_runner.run_async(
+        user_id=user_id,
+        session_id=session_id,
+        new_message=types.Content(role="user", parts=[types.Part(text=question)]),
+    ):
+        if event.is_final_response() and event.content and event.content.parts:
+            answer = "".join(p.text or "" for p in event.content.parts)
+
+    return {
+        "question": question,
+        "answer": answer.strip(),
+        "sources": [
+            c.get("result_summary", "")[:200]
+            for c in tool_logger.public_calls()
+            if c.get("name") == "retrieve_knowledge"
+        ],
+        "tools_called": tool_logger.public_calls(),
+        "llm_model": settings.litellm_model,
+    }

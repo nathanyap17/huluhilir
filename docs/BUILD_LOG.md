@@ -485,3 +485,63 @@ Driven end-to-end in a real browser against the live Cloud Run backend, not asse
 - The 3D terrain remains Android-only. If a browser-based 3D view is ever wanted, `terrain.html` is already a standalone page and could be embedded via `HtmlElementView` + an iframe rather than by porting the scene.
 
 ---
+
+## [Fix pass] Six reported defects — logo, landing page, terrain, upload, RAG, TTS
+
+Reported after using the deployed build. Three of these were **placeholders that had never been implemented**, not regressions; saying so plainly matters more than the fix, because the affordances existed in the UI and therefore read as working features.
+
+### 1 · Logo in every header
+
+`docs/brand/logo.png` copied to `flutter_app/assets/brand/` and exposed as `BrandLogo` / `BrandLogoAction` (`lib/brand.dart`) rather than placed per-screen, so six headers cannot drift apart. It sits to the **right** of the wordmark, matching the landing page. `assets/brand/` needed its own `pubspec.yaml` line — directory assets bundle non-recursively, the same trap that silently dropped `terrain/vendor/` earlier. The banner goes in `README.md`, not the app.
+
+`BrandLogo` falls back to an empty box rather than Flutter's broken-image glyph: a header briefly missing its logo is cosmetic, a red error box in the middle of a farmer's dashboard is not.
+
+### 2 · Landing page (React + TypeScript + anime.js)
+
+New `landing/` (Vite). Content condensed from `LANDING_PAGE.md`; palette and type mirror `lib/theme.dart` so the page and the product do not look like two products. anime.js v4 (`animate`/`stagger`/`createScope` — **not** the v3 default-export API; `@types/animejs` is v3-only and was removed since v4 ships its own types).
+
+Hosting now serves the landing page at `/` and the Flutter app at `/app`, staged by `build-site.sh` into `public_site/`.
+
+**Two real traps, both worth remembering:**
+
+- **Motion must not gate content.** The first version put `opacity: 0` in CSS and animated it up. In a background tab — where `requestAnimationFrame` is throttled hard — the fade never finished and the page stayed *blank*. Now content is visible by default, JS adds `.motion-ready` immediately before animating, and a 4s failsafe force-reveals everything regardless. A page whose script never runs simply shows its content.
+- **`--base-href /app/` cannot be passed from Git Bash on Windows.** MSYS rewrites anything path-shaped, so Flutter received `"C:/Program Files/Git/app/"` and failed citing a value nobody typed. `MSYS_NO_PATHCONV=1` did not help. The build now patches `<base href>` into the built `index.html` afterwards, which is immune and platform-independent.
+
+### 3 · Terrain — green ground, real zoom, legend, cross-sections, and 3D on web
+
+- **The 3D scene now runs in the browser.** Previously web fell back to the 2D diagram because `webview_flutter` has no web implementation. But `terrain.html` is already standalone, so on web it is embedded as an `<iframe>` (`lib/terrain_embed_web.dart`, selected by conditional import on `dart.library.js_interop`) driven by `postMessage` — the web counterpart of the Android `JavaScriptChannel`. **One scene file, one payload shape, two transports.** Selection opens the same native profile overlay on both.
+- **Green, natural ground.** The old white → cyan → orange → green ramp read as desert terracing, and worse, implied that ground colour encoded risk. It is now green throughout, lightening with height the way a real hillside does. Risk is carried by the pillars and cross-sections, never by the ground. Ambient/sun were also lowered — they had been tuned against the pale ramp and blew out mid-greens — and `STEP_HEIGHT` dropped 0.5 → 0.28 so terracing reads as bench terraces rather than a ziggurat.
+- **Zoom actually moves now.** `minDistance`/`maxDistance` were 8–26, tight enough that pinching felt inert. Now 3.5–60.
+- **Legend moved into the scene**, so it travels with the terrain on every platform instead of only existing on the 2D fallback. Colours are taken from `STATE_COLOUR` directly rather than eyeballed.
+- **Cross-sections.** A semi-transparent column tinted by the block's condition, cut down through the terrain — the soil-core metaphor is the correct one, since foot rot is a *soil-borne* disease and a block's condition is a property of the ground under it, not the canopy above. Depth is fixed, not scaled by risk: it is a section, not a bar chart, and varying its length would imply a magnitude the model does not claim. It had to span *above* the surface too — a column entirely underground was fully occluded by the opaque terrain, leaving only its cap disc visible.
+
+### 4 · `Unsupported operation: _Namespace` on photo submit
+
+`dart:io`'s `File` does not exist on web; constructing one throws exactly that. `uploadMedia` now takes `Uint8List` and callers use `XFile.readAsBytes()`, which works on both platforms — and the bytes were needed for the content hash anyway. `walk_screen`'s voice label followed: `AudioRecorder.stop()` returns a path on Android and a blob URL on web, so both are read back over HTTP rather than through the filesystem (`lib/recording_io.dart`). A lost voice label never blocks capturing the block — it is an optional audio sticker, not required data.
+
+**The ONNX model was never the problem** and is confirmed working on Cloud Run: a real upload through `/media` → `/observations` returned `defoliation_wilt 0.6296` with all six class scores and `inference_ms: 6`.
+
+### 5 · Tanya (RAG) was a placeholder
+
+The FAB showed *"Tanya (RAG) — datang tidak lama lagi"*. The **Advisor agent already existed** (`app/agent/advisor_agent.py`) with retrieval wired; it simply had no HTTP route and no UI. Added `POST /advisor/ask` and `TanyaSheet`.
+
+Deliberately **not** persisted as an `agent_run`: those record decisions that produced recommendations, and a farmer asking "what causes foot rot" produced none — mixing them would corrupt the arbitration audit trail `tools_called` exists to evidence. The rule-2 guarantee here is structural, not prompt-based: the agent's only tool is scoped away from the authoritative namespace, so it *cannot* reach a dose, product, or timing.
+
+Verified live: *"Apa punca penyakit busuk pangkal?"* returned a correct Malay answer citing `kb_001` via a real `retrieve_knowledge` call.
+
+### 6 · TTS was a placeholder
+
+The speaker button showed `Suara: rain_pulse_forecast (Block E)` — a snackbar naming the template id, never wired to the Block E speech endpoints. Now calls `/speech/say` and plays the result (`lib/speech.dart`). The spoken line is composed from the same live values the card displays, so audio cannot drift from the text beside it. Verified from the deployed origin: a real 33,216-byte `audio/mpeg` in `ms-MY-Standard-A`.
+
+### Verified (how)
+
+Driven in a real browser against the live stack, not inferred from builds: 3D terrain rendering with all 6 real blocks, zoom, click-to-select opening the native profile card, cross-sections visible; landing page rendering and scroll-revealing; `/` serving the landing page and `/app/` serving the Flutter app with the correct `<base href>`; ONNX inference and TTS confirmed by direct API calls. `flutter analyze`: 0 new issues. `tsc -b` clean.
+
+### Known gaps
+
+- The **cross-section depth carries no data** — it is uniform. If block-level severity should be legible at a glance, that is a deliberate next decision, not an oversight.
+- `REPO_URL` in `landing/src/content.ts` is a **placeholder**; the repo is not published yet. It must be corrected before the landing page is shared, or the two most prominent buttons 404.
+- Firebase Hosting caching bit twice during testing, serving a stale bundle long enough to look like a failed deploy. `no-cache` is now set on both `index.html` files, but **hard-reload after deploying** rather than trusting a screenshot.
+- Web still cannot complete the walk (block capture needs a real GPS fix), and the browser blocks geolocation by default — registration degrades to a district centroid, capture cannot.
+
+---

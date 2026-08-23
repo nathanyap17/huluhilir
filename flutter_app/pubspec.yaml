@@ -50,6 +50,8 @@ dependencies:
   shared_preferences: ^2.5.5
   google_fonts: ^8.2.1
   webview_flutter: ^4.14.1
+  # Web-only: iframe embed for the 3D terrain (lib/terrain_embed_web.dart).
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -79,7 +81,10 @@ flutter:
   # vendor/three.min.js until this line was added). See docs/BUILD_LOG.md.
   assets:
     - assets/terrain/
+    # Directory assets are bundled NON-recursively -- vendor/ needs its own
+    # line or the Three.js build silently never reaches the APK.
     - assets/terrain/vendor/
+    - assets/brand/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

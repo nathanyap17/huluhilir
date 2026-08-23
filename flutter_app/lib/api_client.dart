@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
@@ -111,10 +111,23 @@ class ApiClient {
 
   // ---- media ---------------------------------------------------------------
 
-  Future<String> uploadMedia(File file, {required String contentType}) async {
+  /// Upload takes bytes, not a File.
+  ///
+  /// `dart:io`'s File does not exist on web -- constructing one there throws
+  /// `Unsupported operation: _Namespace`, which is what a photo submission
+  /// used to fail with in the browser. `XFile.readAsBytes()` works on both
+  /// platforms, so callers read bytes and this stays platform-agnostic.
+  /// The server is content-addressed by SHA-256 either way, so nothing
+  /// downstream cares where the bytes came from.
+  Future<String> uploadMedia(
+    Uint8List bytes, {
+    required String contentType,
+    String filename = 'upload',
+  }) async {
     final form = FormData.fromMap({
-      'file': await MultipartFile.fromFile(
-        file.path,
+      'file': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
         contentType: DioMediaType.parse(contentType),
       ),
     });
@@ -197,6 +210,35 @@ class ApiClient {
       'farm_id': farmId,
       'message': message,
       'cycle_id': cycleId,
+    });
+    return Map<String, dynamic>.from(r.data);
+  }
+
+  // ---- advisor (Tanya) -----------------------------------------------------
+
+  /// Free-form question answered over retrieval.
+  ///
+  /// The backend's Advisor agent can only reach `retrieve_knowledge`, which
+  /// is scoped away from the authoritative namespace -- so this can explain
+  /// why, but structurally cannot return a dose, product, or timing
+  /// (huluhilir-rules §2). Treat the answer as explanation, never as an
+  /// instruction to act on.
+  Future<Map<String, dynamic>> askAdvisor(String question) async {
+    final r = await _dio.post('/advisor/ask', data: {'question': question});
+    return Map<String, dynamic>.from(r.data);
+  }
+
+  // ---- speech --------------------------------------------------------------
+
+  /// Synthesise a line of agent output. Returns the response as-is: on any
+  /// synthesis failure the server sets `audio_uri` to null and fills
+  /// `degraded_reason` rather than erroring, because a farmer who cannot
+  /// hear the advice must still be able to read it.
+  Future<Map<String, dynamic>> say(String text, {String language = 'ms', String? templateId}) async {
+    final r = await _dio.post('/speech/say', data: {
+      'template_id': templateId ?? '_adhoc',
+      'language': language,
+      'slots': {'text': text},
     });
     return Map<String, dynamic>.from(r.data);
   }

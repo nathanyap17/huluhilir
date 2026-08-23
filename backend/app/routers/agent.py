@@ -1,10 +1,10 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.runner import run_root_agent
+from app.agent.runner import run_advisor_question, run_root_agent
 from app.db import get_session
 from app.schemas.advisor import AdvisorVerdictOut
 from app.schemas.agent import AgentRunOut
@@ -37,3 +37,17 @@ async def get_advisor(farm_id: str, session: AsyncSession = Depends(get_session)
     rain_48h = sum(o.rainfall_mm for o in weather.rainfall_7d[:2])
     rain_since_last = sum(o.rainfall_mm for o in weather.rainfall_7d)
     return await should_diagnose(session, farm_id, rain_48h_mm=rain_48h, rain_since_last_cycle_mm=rain_since_last)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=2, max_length=500)
+
+
+@router.post("/advisor/ask")
+async def advisor_ask(req: AskRequest, session: AsyncSession = Depends(get_session)) -> dict:
+    """Free-form "Tanya" question, answered by the Advisor agent over
+    retrieval. Explains why; never decides what -- the agent's only tool is
+    scoped away from the authoritative namespace, so it cannot reach a dose,
+    product, or timing (huluhilir-rules §2).
+    """
+    return await run_advisor_question(session, req.question.strip())

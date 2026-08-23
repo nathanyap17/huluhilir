@@ -2,12 +2,16 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
+import '../speech.dart';
 import '../terrain_3d_view.dart';
+import '../terrain_3d_web_view.dart';
 import '../terrain_canvas.dart' show TerrainCanvas; // stateColour/stateLabelMs, and a safe 2D fallback
 import '../theme.dart';
 import 'diagnosis_screen.dart';
+import 'tanya_sheet.dart';
 
 /// docs/PROJECT_SPEC.md §7. Section order is deliberate and matches the spec:
 /// rain pulse (always) → advisor (conditional) → priority action (the
@@ -106,8 +110,12 @@ class _Header extends StatelessWidget {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('HuluHilir',
-                style: AppText.serif(size: 34, weight: FontWeight.bold, color: AppColors.olive)),
+            Row(children: [
+              Text('HuluHilir',
+                  style: AppText.serif(size: 34, weight: FontWeight.bold, color: AppColors.olive)),
+              const SizedBox(width: 10),
+              const BrandLogo(size: 38),
+            ]),
             const SizedBox(height: 4),
             Text('Dari hulu ke hilir — sebelum penyakit sampai.',
                 style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.oliveLight)
@@ -134,12 +142,18 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _RainPulseCard extends StatelessWidget {
+class _RainPulseCard extends ConsumerWidget {
   final RainPulse pulse;
   const _RainPulseCard({required this.pulse});
 
+  /// What gets spoken. Composed from the same live values the card shows, so
+  /// the audio can never drift from the text beside it.
+  String get _spoken =>
+      'Hujan ${pulse.rainfallMm.toStringAsFixed(0)} milimeter pada ${pulse.dayLabel}, '
+      '${pulse.daysAway} hari lagi.';
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -154,14 +168,14 @@ class _RainPulseCard extends StatelessWidget {
           const SizedBox(width: 8),
           Text('DENYUT HUJAN', style: AppText.eyebrow()),
           const Spacer(),
-          // Speech playback hook: every user-facing string carries a
-          // speech_template_id (huluhilir-rules skill §8). Wired to audio in
-          // Block E; the affordance exists here so the contract is visible.
+          // Literacy is not assumed (huluhilir-rules §7). speechTemplateId is
+          // passed through so the spoken line stays traceable to the phrasing
+          // it came from, even though the text itself is composed at runtime
+          // from live rainfall and therefore has no pre-recorded clip.
           IconButton(
             icon: const Icon(Icons.volume_up, color: AppColors.oliveLight),
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Suara: ${pulse.speechTemplateId ?? "-"} (Block E)')),
-            ),
+            tooltip: 'Dengar',
+            onPressed: () => speak(context, ref, _spoken, templateId: pulse.speechTemplateId),
           ),
         ]),
         const SizedBox(height: 8),
@@ -359,15 +373,17 @@ class _TerrainCard extends StatelessWidget {
             style: AppText.sans(size: 11, color: AppColors.oliveLight)
                 .copyWith(fontStyle: FontStyle.italic)),
         const SizedBox(height: 20),
-        // webview_flutter has no web implementation, so the 3D scene cannot
-        // run in a browser build. TerrainCanvas -- the 2D flow diagram kept
-        // deliberately as a fallback when the 3D view replaced it -- takes
-        // an identical set of arguments, so this is a straight swap rather
-        // than a second implementation to maintain. Android is unaffected:
-        // kIsWeb is a compile-time constant there, so the APK still gets the
-        // 3D view and this branch is tree-shaken out entirely.
+        // Same 3D scene on both platforms; only the transport differs.
+        // Android drives terrain.html through a WebViewController, web
+        // embeds the identical file as an iframe (webview_flutter has no web
+        // implementation). kIsWeb is a compile-time constant, so each build
+        // tree-shakes the other branch away entirely.
+        //
+        // TerrainCanvas (the 2D diagram) is still kept in the codebase as
+        // the emergency fallback if WebGL misbehaves on a demo device --
+        // swapping either branch back to it is a one-line change.
         if (kIsWeb)
-          TerrainCanvas(
+          Terrain3DWebView(
             nodes: data.terrainNodes,
             edges: data.terrainEdges,
             labels: labels,
@@ -572,8 +588,12 @@ class _FabColumn extends ConsumerWidget {
         ),
         child: IconButton(
           icon: const Icon(Icons.chat_bubble_outline, color: AppColors.olive, size: 20),
-          onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tanya (RAG) — datang tidak lama lagi')),
+          tooltip: 'Tanya',
+          onPressed: () => showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (_) => const TanyaSheet(),
           ),
         ),
       ),

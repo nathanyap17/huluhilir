@@ -6,10 +6,36 @@
 <style>
   html, body { margin: 0; padding: 0; overflow: hidden; background: #F5F2ED; touch-action: none; }
   #status { position: fixed; bottom: 4px; left: 6px; color: #8A8A70; font-family: sans-serif; font-size: 9px; z-index: 10; opacity: 0.6; }
+  /* Legend lives inside the scene rather than in the Flutter card above it,
+     so it travels with the terrain on every platform -- the 2D fallback
+     draws its own, and having only one of the two carry a legend was the
+     inconsistency this fixes. */
+  #legend {
+    position: fixed; top: 10px; left: 10px; z-index: 10;
+    background: rgba(255,255,255,0.88); border: 1px solid #E4DFD5;
+    border-radius: 10px; padding: 10px 12px;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 11px; color: #2D2D2D;
+    pointer-events: none; line-height: 1.7;
+  }
+  #legend .row { display: flex; align-items: center; gap: 7px; }
+  #legend .dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  #legend .flow { width: 14px; border-top: 2px dashed #8A8A70; flex: 0 0 auto; }
+  #hint {
+    position: fixed; bottom: 8px; right: 10px; z-index: 10;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 10px;
+    color: #8A8A70; opacity: 0.75; pointer-events: none;
+  }
 </style>
 </head>
 <body>
 <div id="status">init</div>
+<div id="legend">
+  <div class="row"><span class="dot" style="background:#CC7A5C"></span>Terjejas</div>
+  <div class="row"><span class="dot" style="background:#EBC366"></span>Berisiko</div>
+  <div class="row"><span class="dot" style="background:#5A5A40"></span>Selamat</div>
+  <div class="row"><span class="flow"></span>Aliran hiliran</div>
+</div>
+<div id="hint">Cubit untuk zum · seret untuk putar</div>
 <!--
   Classic (non-module) Three.js r128 -- confirmed necessary on-device, see
   docs/BUILD_LOG.md "3D terrain viability spike". ES modules loaded via
@@ -32,20 +58,24 @@ function setStatus(s) { statusEl.textContent = s; }
 // never records (huluhilir-rules skill §4).
 const PLANE_SIZE = 18;
 const SEGMENTS = 100; // 150 in the original spec; reduced for mobile GPUs, still smooth
-const STEP_HEIGHT = 0.5;
+const STEP_HEIGHT = 0.28;
 const MAX_HEIGHT = 3.0;
 const ISLAND_RADIUS = 8.0;
 const IDW_POWER = 3; // sharper falloff so each block's own height dominates near it, rather than blending flat
 
 // Elevation colour ramp: base/water -> mid earth/sand -> high vegetation.
+// Green throughout, lightening with height -- the way a real hillside reads,
+// where ridges catch more sun and valley floors sit damp and shaded. The
+// earlier white/cyan/orange ramp looked like desert terracing and gave the
+// misleading impression that colour encoded risk; risk is carried by the
+// vine pillars and the cross-section slabs, never by the ground.
 const ELEVATION_STOPS = [
-  [0.00, 0xF5F5F5],
-  [0.15, 0xE0F7FA],
-  [0.35, 0xFFCC80],
-  [0.55, 0xFFB74D],
-  [0.70, 0xE65100],
-  [0.85, 0x9CCC65],
-  [1.00, 0x558B2F],
+  [0.00, 0x33452B],
+  [0.20, 0x3D5732],
+  [0.42, 0x496839],
+  [0.62, 0x577A42],
+  [0.82, 0x668C4C],
+  [1.00, 0x789F5B],
 ];
 
 const STATE_COLOUR = {
@@ -82,13 +112,18 @@ function init() {
   // zoom distance (per spec §6).
   controls.maxPolarAngle = Math.PI / 2 - 0.08;
   controls.minPolarAngle = Math.PI / 6;
-  controls.minDistance = 8;
-  controls.maxDistance = 26;
+  // Wide zoom range: the previous 8-26 clamp was tight enough that pinching
+  // felt like nothing happened. Close enough to inspect one block's
+  // cross-section, far enough to see the whole catchment.
+  controls.enableZoom = true;
+  controls.zoomSpeed = 1.1;
+  controls.minDistance = 3.5;
+  controls.maxDistance = 60;
   controls.target.set(0, 1.0, -3.0);
   controls.update();
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+  scene.add(new THREE.AmbientLight(0xC9D8C0, 0.45));
+  const sun = new THREE.DirectionalLight(0xFFF6E0, 0.95);
   sun.position.set(8, 14, 6);
   scene.add(sun);
 
@@ -255,14 +290,49 @@ function buildVinePillar(node) {
   const group = new THREE.Group();
   const colour = STATE_COLOUR[node.currentState] ?? STATE_COLOUR.protected;
 
-  // Semi-transparent base decal.
-  const decal = new THREE.Mesh(
-    new THREE.CircleGeometry(0.55, 24),
-    new THREE.MeshBasicMaterial({ color: colour, transparent: true, opacity: 0.4 })
+  // Cross-sectional core beneath the block: a semi-transparent column cut
+  // down through the terrain, tinted by the block's condition. This reads
+  // the way a soil core does, which is the right metaphor -- foot rot is a
+  // SOIL-borne, water-driven disease, so a block's condition is a property
+  // of the ground under it, not of the canopy above it. Depth is fixed
+  // rather than scaled by risk: it is a cross-section, not a bar chart, and
+  // varying its length would imply a magnitude the model does not claim.
+  // Spans above the surface as well as below: a column that sat entirely
+  // underground was completely occluded by the opaque terrain, leaving only
+  // its top disc visible, which defeated the point of showing a section.
+  const CORE_DEPTH = 2.4;
+  const CORE_RISE = 0.5;
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.5, 0.5, CORE_DEPTH + CORE_RISE, 24, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: colour,
+      transparent: true,
+      opacity: 0.30,
+      side: THREE.DoubleSide,
+      depthWrite: false, // otherwise the column occludes the terrain behind it
+    })
   );
-  decal.rotation.x = -Math.PI / 2;
-  decal.position.y = 0.01;
-  group.add(decal);
+  // Hangs below the surface the pillar stands on.
+  core.position.y = CORE_RISE - (CORE_DEPTH + CORE_RISE) / 2;
+  group.add(core);
+
+  // Cap discs close the column at both ends so it reads as a solid sample
+  // rather than an open tube when seen from above or below.
+  for (const y of [CORE_RISE, -CORE_DEPTH]) {
+    const cap = new THREE.Mesh(
+      new THREE.CircleGeometry(0.5, 24),
+      new THREE.MeshBasicMaterial({
+        color: colour,
+        transparent: true,
+        opacity: 0.45,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+    cap.rotation.x = -Math.PI / 2;
+    cap.position.y = y;
+    group.add(cap);
+  }
 
   // Wooden support post.
   const post = new THREE.Mesh(
@@ -374,6 +444,12 @@ function selectBlock(blockId, basePos) {
   selectionRing.visible = true;
   selectionRing.position.set(basePos.x, 0.02, basePos.z);
   if (window.FlutterBridge) FlutterBridge.postMessage('select:' + blockId);
+  // Web: the same event, over postMessage. webview_flutter has no web
+  // implementation, so in a browser this page is embedded as an iframe and
+  // JavaScriptChannel does not exist -- see lib/terrain_embed_web.dart.
+  if (window.parent && window.parent !== window) {
+    window.parent.postMessage('huluhilir-select:' + blockId, '*');
+  }
 }
 
 window.clearSelection = function () {
@@ -383,6 +459,20 @@ window.clearSelection = function () {
 // ---- entry point called from Flutter -----------------------------------------
 // payload: { nodes: [{block_id,label,elevation_rank,current_state}],
 //            edges: [{from_block_id,to_block_id,flow_weight,barrier}] }
+// Web entry point. Android calls window.renderTerrain directly through the
+// WebViewController; a browser cannot, so the iframe accepts the same payload
+// as a message and forwards it to the identical function. Both platforms
+// therefore drive one code path, not two.
+window.addEventListener('message', function (event) {
+  const data = event.data;
+  if (typeof data !== 'string' || data.indexOf('huluhilir-render:') !== 0) return;
+  try {
+    window.renderTerrain(JSON.parse(data.slice('huluhilir-render:'.length)));
+  } catch (err) {
+    setStatus('render message failed: ' + err.message);
+  }
+});
+
 window.renderTerrain = function (payload) {
   currentNodes = payload.nodes || [];
   const edges = payload.edges || [];
@@ -417,7 +507,7 @@ window.renderTerrain = function (payload) {
   sortedByRank.forEach((node, i) => {
     const t = n === 1 ? 0 : i / (n - 1);
     const heightFrac = 1 - (node.elevation_rank - minRank) / rankSpan;
-    const radius = 0.9 + t * 6.3;
+    const radius = 0.9 + t * 7.4;
     const jitter = (i % 2 === 0 ? -1 : 1) * 0.85;
     positions[node.block_id] = { x: jitter, z: -radius, heightFrac };
   });

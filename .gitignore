@@ -34,3 +34,8 @@ flutter_app/build/
 
 # Firebase deploy cache -- local, regenerated per deploy
 .firebase/
+
+# Generated hosting payload (build-site.sh)
+public_site/
+landing/dist/
+landing/node_modules/

@@ -1,0 +1,215 @@
+/* Palette and type mirror the Flutter app (lib/theme.dart) so the landing
+   page and the product do not look like two different products. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  --cream: #f5f2ed;
+  --cream-deep: #ece7de;
+  --charcoal: #2d2d2d;
+  --olive: #5a5a40;
+  --olive-light: #8a8a70;
+  --terracotta: #cc7a5c;
+  --hairline: #e4dfd5;
+  --white: #fff;
+
+  --serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --sans: 'Inter', -apple-system, system-ui, 'Segoe UI', sans-serif;
+
+  --radius: 18px;
+  --maxw: 1120px;
+
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--charcoal);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; line-height: 1.15; margin: 0; }
+
+a { color: inherit; }
+
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; }
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--olive-light);
+}
+
+/* ---- header ---------------------------------------------------------- */
+
+.site-header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(245, 242, 237, 0.86);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hairline);
+}
+.site-header .wrap {
+  display: flex; align-items: center; gap: 14px;
+  height: 68px;
+}
+/* Logo sits to the RIGHT of the wordmark, matching the app's header. */
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.brand-name { font-family: var(--serif); font-size: 23px; font-weight: 700; color: var(--olive); }
+.brand-logo { height: 34px; width: auto; display: block; }
+.header-spacer { flex: 1; }
+.header-links { display: flex; align-items: center; gap: 10px; }
+
+/* ---- buttons --------------------------------------------------------- */
+
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+  text-decoration: none; cursor: pointer; border: 1px solid transparent;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn-primary { background: var(--olive); color: var(--white); box-shadow: 0 8px 22px rgba(90, 90, 64, 0.28); }
+.btn-primary:hover { box-shadow: 0 12px 28px rgba(90, 90, 64, 0.34); }
+.btn-ghost { background: transparent; color: var(--olive); border-color: var(--hairline); }
+.btn-ghost:hover { background: var(--white); }
+.btn-terra { background: var(--terracotta); color: var(--white); box-shadow: 0 8px 22px rgba(204, 122, 92, 0.3); }
+
+@media (max-width: 720px) {
+  .header-links .btn { padding: 10px 14px; font-size: 13px; }
+  .brand-name { font-size: 19px; }
+}
+
+/* ---- hero ------------------------------------------------------------ */
+
+.hero { padding: 88px 0 64px; position: relative; overflow: hidden; }
+.hero h1 { font-size: clamp(38px, 6.2vw, 68px); letter-spacing: -0.02em; }
+.hero h1 .accent { color: var(--terracotta); }
+.hero-tag {
+  font-family: var(--serif); font-style: italic;
+  font-size: clamp(16px, 2.1vw, 21px); color: var(--olive-light);
+  margin: 18px 0 0;
+}
+.hero-lede { max-width: 620px; margin: 26px 0 0; font-size: 17px; color: #4a4a44; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.hero-meta { margin-top: 26px; font-size: 13px; color: var(--olive-light); }
+
+/* The terrain motif: stacked slope bands, animated on load. */
+.slope-figure { margin-top: 54px; position: relative; height: 210px; }
+.slope-band {
+  position: absolute; left: 0; right: 0;
+  border-radius: 999px;
+  transform-origin: center;
+}
+.drop {
+  position: absolute; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--terracotta); box-shadow: 0 2px 8px rgba(204, 122, 92, 0.45);
+}
+
+/* ---- sections -------------------------------------------------------- */
+
+section { padding: 76px 0; }
+.section-head { max-width: 720px; margin-bottom: 42px; }
+.section-head h2 { font-size: clamp(27px, 3.6vw, 40px); margin-top: 12px; }
+.section-head p { color: #55554e; margin: 16px 0 0; }
+
+.alt { background: var(--cream-deep); }
+
+/* ---- stats ----------------------------------------------------------- */
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 20px; }
+.stat {
+  background: var(--white); border: 1px solid var(--hairline);
+  border-radius: var(--radius); padding: 26px;
+}
+.stat-num { font-family: var(--serif); font-size: 40px; font-weight: 700; color: var(--terracotta); line-height: 1; }
+.stat-label { margin-top: 10px; font-size: 13.5px; color: #55554e; }
+
+/* ---- layers ---------------------------------------------------------- */
+
+.layers { display: grid; gap: 14px; }
+.layer {
+  display: grid; grid-template-columns: 62px 1fr; gap: 22px; align-items: start;
+  background: var(--white); border: 1px solid var(--hairline);
+  border-radius: var(--radius); padding: 24px 26px;
+}
+.layer-id { font-family: var(--serif); font-size: 25px; font-weight: 700; color: var(--olive-light); }
+.layer h3 { font-size: 19px; }
+.layer p { margin: 8px 0 0; color: #55554e; font-size: 14.5px; }
+@media (max-width: 620px) {
+  .layer { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* ---- arbitration ----------------------------------------------------- */
+
+.arb { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+@media (max-width: 900px) { .arb { grid-template-columns: 1fr; } }
+
+.signal {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--white); border: 1px solid var(--hairline);
+  border-radius: 14px; padding: 15px 18px; margin-bottom: 11px;
+}
+.signal-dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 7px; flex: 0 0 auto; }
+.signal-src { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--olive-light); }
+.signal-txt { font-size: 15px; margin-top: 2px; }
+
+.verdict {
+  background: var(--olive); color: var(--white);
+  border-radius: var(--radius); padding: 34px 32px;
+}
+.verdict .eyebrow { color: rgba(255,255,255,0.66); }
+.verdict-line { font-family: var(--serif); font-size: clamp(23px, 3.2vw, 31px); font-weight: 600; margin: 14px 0 0; }
+.verdict-why { margin: 18px 0 0; font-size: 14.5px; color: rgba(255,255,255,0.82); }
+
+/* ---- rules ----------------------------------------------------------- */
+
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.rule {
+  background: var(--white); border: 1px solid var(--hairline);
+  border-left: 3px solid var(--terracotta);
+  border-radius: 12px; padding: 20px 22px;
+  font-size: 14.5px; color: #55554e;
+}
+.rule strong { color: var(--charcoal); display: block; margin-bottom: 5px; font-size: 15px; }
+
+/* ---- cta ------------------------------------------------------------- */
+
+.cta-band { text-align: center; padding: 92px 0; }
+.cta-band h2 { font-size: clamp(28px, 4vw, 44px); }
+.cta-band p { color: #55554e; max-width: 520px; margin: 16px auto 0; }
+.cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+
+/* ---- footer ---------------------------------------------------------- */
+
+footer { border-top: 1px solid var(--hairline); padding: 40px 0 56px; font-size: 13px; color: var(--olive-light); }
+.footer-row { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+footer a { text-decoration: none; }
+footer a:hover { color: var(--olive); }
+
+/* Reveal targets are VISIBLE by default and hidden by JS immediately before
+   being animated in. Doing it the other way round (opacity:0 in CSS) means
+   any failure to finish the animation — a JS error, a slow device, or a
+   background tab where requestAnimationFrame is throttled to a crawl —
+   leaves the page permanently blank. Content first; motion is the
+   enhancement. `.motion-ready` is set by JS only once it is about to
+   animate, so a page whose script never runs simply shows everything. */
+.motion-ready .js-reveal,
+.motion-ready .slope-band,
+.motion-ready .drop { opacity: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .js-reveal { opacity: 1 !important; transform: none !important; }
+  html { scroll-behavior: auto; }
+}

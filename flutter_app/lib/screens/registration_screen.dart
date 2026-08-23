@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
+import '../brand.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
 import 'walk_screen.dart';
@@ -177,7 +178,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
     final barometer = ref.watch(barometerAvailableProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('HuluHilir')),
+      appBar: AppBar(title: const Text('HuluHilir'), actions: const [BrandLogoAction()]),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
@@ -95,7 +96,7 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Ralat')),
+        appBar: AppBar(title: const Text('Ralat'), actions: const [BrandLogoAction()]),
         body: Padding(padding: const EdgeInsets.all(20), child: Text(_error!)),
       );
     }
@@ -108,7 +109,7 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
     final labelB = question.blockBLabel ?? 'Blok B';
 
     return Scaffold(
-      appBar: AppBar(title: Text('Arah Air (${_index + 1}/${_questions.length})')),
+      appBar: AppBar(title: Text('Arah Air (${_index + 1}/${_questions.length})'), actions: const [BrandLogoAction()]),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(children: [

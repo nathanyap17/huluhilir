@@ -1,11 +1,11 @@
 
-import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
 
@@ -70,11 +70,17 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
     try {
       final api = ref.read(apiClientProvider);
       final session = ref.read(sessionProvider);
-      final file = File(picked.path);
-      final bytes = await file.readAsBytes();
+      // XFile.readAsBytes() rather than File(picked.path): dart:io's File
+      // throws `Unsupported operation: _Namespace` on web, and the bytes are
+      // needed for the content hash regardless.
+      final bytes = await picked.readAsBytes();
       final hash = sha256.convert(bytes).toString();
 
-      final imageUri = await api.uploadMedia(file, contentType: 'image/jpeg');
+      final imageUri = await api.uploadMedia(
+        bytes,
+        contentType: 'image/jpeg',
+        filename: picked.name,
+      );
       final result = await api.submitObservation(
         blockId: block.blockId,
         userId: session.user!.userId,
@@ -155,7 +161,7 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
     final allDone = captured >= total && total > 0;
 
     return Scaffold(
-      appBar: AppBar(title: Text('Diagnosis ($captured/$total)')),
+      appBar: AppBar(title: Text('Diagnosis ($captured/$total)'), actions: const [BrandLogoAction()]),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.all(16),
