@@ -270,3 +270,41 @@ User supplied a detailed design spec (colours, type pairing, card-by-card layout
 - Reset was moved from "long-press the chat FAB" (my first instinct) to "long-press the header's settings icon" — overloading the chat button's long-press with an unrelated destructive action would have been confusing UX; not explicitly covered by the design spec's 2-FAB layout, so this is a judgment call worth revisiting if the design is reviewed further.
 
 ---
+
+## [Block D+] 3D terrain viability spike — WebView + Three.js, verified on-device
+
+User supplied a detailed React Three Fiber spec for the terrain visual (procedural IDW terrain, terracing, flat-shaded low-poly vine clusters, dashed downhill flow lines, OrbitControls, click-to-select) and asked directly whether it's achievable in Flutter, specifically on-device rather than in theory. Flutter has no built-in 3D engine, so this was a genuine three-way architecture fork, not a "just build it": (A) embed real Three.js in a WebView, (B) fake it with 2D `CustomPainter` isometric projection, (C) an experimental/unmaintained Dart-native 3D engine (`three_dart`, `flutter_scene`). Presented the tradeoffs and the user picked (A), then asked "will this work on phone?" — answered empirically rather than by assertion, since this codebase's whole culture is "verified how," not "should work."
+
+**Result: yes, confirmed working, with two real bugs found and fixed along the way that would otherwise have surfaced as an inexplicable blank screen at demo time.**
+
+**Files added:** `flutter_app/assets/terrain/smoke_test.html`, `flutter_app/assets/terrain/vendor/{three.min.js,OrbitControls.js}` (Three.js r128, vendored locally — not fetched from a CDN at runtime, so this works fully offline once installed), `flutter_app/lib/terrain_3d_smoke_test.dart` (kept as reference scaffold for the real implementation; not routed from `main.dart`)
+
+### Bug 1: ES modules cannot load over `file://` — a Chromium restriction, not a WebView quirk
+
+First attempt used `three.module.js` (the current recommended Three.js distribution -- the classic global-script UMD build is deprecated as of r150+) loaded via `<script type="module">` with an import map. This produced, on-device: `Access to script at 'file:///android_asset/.../three.module.js' from origin 'null' has been blocked by CORS policy`. `webview_flutter`'s `loadFlutterAsset()` serves bundled assets at `file:///android_asset/flutter_assets/...`, and Chromium's ES module loader treats `file://` as an opaque/null origin, which fails the same-origin check module imports require -- regardless of the fact that the importing page and the imported script are in the exact same local directory. This is standard Chromium behaviour (reproducible in desktop Chrome too, not something specific to Android WebView).
+
+Plain `<script>` tags (no `type="module"`) have never had this restriction -- only the ES module loader path triggers the CORS check. **Fix:** dropped ES modules; pinned to Three.js r128, the last release with a full classic UMD build (`build/three.min.js`, attaches `window.THREE`) and a matching non-module `OrbitControls.js` (`examples/js/controls/OrbitControls.js`, attaches `THREE.OrbitControls`). This is a real constraint on the eventual full implementation too: **any Three.js addon used (Line2/LineDashedMaterial for the flow vectors, Text geometry for labels, etc.) must be sourced from the classic `examples/js/` tree of a pre-r150 release, not the modern `examples/jsm/` ES-module tree** -- mixing module and non-module Three.js code will not work here.
+
+### Bug 2: Flutter directory asset declarations are not recursive
+
+After fixing bug 1, the page still failed with `THREE is not defined` and logcat showed `AndroidProtocolHandler: Unable to open asset URL: .../vendor/three.min.js`. `pubspec.yaml` declared `assets/terrain/` as a directory asset, which Flutter's asset bundler includes shallowly -- files directly inside `assets/terrain/` (i.e. `smoke_test.html`) were bundled, but the nested `vendor/` subfolder's contents were silently dropped. Confirmed by inspecting the built APK directly (`unzip -l ... | grep terrain`) before and after the fix -- the APK genuinely didn't contain the vendor files, this wasn't a caching artifact. **Fix:** added `assets/terrain/vendor/` as its own explicit line in `pubspec.yaml`. **Any future nested asset folder needs the same treatment -- this will bite again silently if forgotten.**
+
+### Verified (how)
+
+- Both bugs were diagnosed via `adb logcat` reading actual Chromium console/protocol-handler output, not guessed at -- `chromium: [INFO:CONSOLE(0)]` lines carry the browser's own JS console messages (including `console.log` calls added for debugging), and `AndroidProtocolHandler` lines show asset-resolution failures directly.
+- Final on-device confirmation: screenshotted the app twice, 3 seconds apart, on the `Pixel_6_API_34` emulator. The camera angle visibly changed between the two screenshots with no user input, confirming `OrbitControls.autoRotate` is genuinely animating a live WebGL scene (not a static frame or a hung page). Flat shading is visible (distinct per-face brightness on both the cube and the dodecahedron under the directional light). The JS-to-Flutter `JavaScriptChannel` bridge round-trip was also confirmed -- the Flutter app's own title bar updated to reflect the message posted from inside the WebView's JS context.
+- `flutter analyze`: 0 new issues. 5 Flutter tests still passing (this spike didn't touch the dashboard/terrain-2D code paths).
+
+### What this does NOT prove yet -- the real terrain implementation is still unbuilt
+
+This spike proves the *pipeline* works: bundled classic-script Three.js renders real WebGL with lighting and animates via OrbitControls inside `webview_flutter`, and JS can talk back to Flutter. It does **not** yet implement any of the spec's actual content:
+- IDW height interpolation over farm block positions, island tapering, height quantization/terracing
+- Vertex/face colouring by elevation tier
+- Per-block vine-cluster geometry (cylinder posts + overlapping dodecahedron foliage) driven by real `BlockModel` state
+- Dashed downhill flow lines driven by real `FlowEdgeModel` data (needs `LineDashedMaterial` from the classic, non-module Three.js examples tree per Bug 1's constraint)
+- Click-to-select raycasting against the vine clusters, wired back to the existing Flutter `_BlockProfile` overlay via the JS bridge
+- Camera polar-angle/zoom clamping
+
+Each of those is a real, separate piece of engineering, not a natural extension of the spike -- estimate this as the largest single remaining task in the app if pursued.
+
+---

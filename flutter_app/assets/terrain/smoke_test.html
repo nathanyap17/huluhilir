@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #F5F2ED; }
+  #status { position: fixed; top: 8px; left: 8px; color: #2D2D2D; font-family: sans-serif; font-size: 14px; z-index: 10; }
+</style>
+</head>
+<body>
+<div id="status">loading...</div>
+<!--
+  Classic global-script builds, NOT ES modules. Android WebView loads bundled
+  assets via file:///android_asset/... , and Chromium's ES module loader
+  treats file:// as a null origin and blocks cross-origin module imports with
+  a CORS error -- confirmed empirically on-device (see docs/BUILD_LOG.md).
+  Plain <script> tags have no such restriction, so we pin to the last
+  pre-modules-only Three.js release (r128) that still ships classic UMD
+  builds of both three.js and OrbitControls.js.
+-->
+<script src="./vendor/three.min.js"></script>
+<script src="./vendor/OrbitControls.js"></script>
+<script>
+  const status = document.getElementById('status');
+
+  try {
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xF5F2ED);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(4, 4, 6);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 2.0;
+
+    const light = new THREE.DirectionalLight(0xffffff, 2);
+    light.position.set(5, 10, 5);
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+    const geo = new THREE.BoxGeometry(2, 2, 2);
+    const mat = new THREE.MeshStandardMaterial({ color: 0x5A5A40, flatShading: true, roughness: 1.0 });
+    const cube = new THREE.Mesh(geo, mat);
+    scene.add(cube);
+
+    const dodeca = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(0.8),
+      new THREE.MeshStandardMaterial({ color: 0xCC7A5C, flatShading: true, roughness: 1.0 })
+    );
+    dodeca.position.set(2.5, 0, 0);
+    scene.add(dodeca);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    status.textContent = 'THREE r' + THREE.REVISION + ' OK -- WebGL live';
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage('smoke_test_ok:' + THREE.REVISION);
+    }
+  } catch (e) {
+    status.textContent = 'ERROR: ' + e.message;
+    status.style.color = '#CC7A5C';
+    if (window.FlutterBridge) {
+      window.FlutterBridge.postMessage('smoke_test_error:' + e.message);
+    }
+  }
+</script>
+</body>
+</html>
