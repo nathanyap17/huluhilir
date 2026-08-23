@@ -17,10 +17,11 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'i18n.dart';
 import 'providers.dart';
 import 'theme.dart';
 
-class TierBanner extends StatelessWidget {
+class TierBanner extends ConsumerWidget {
   final bool available;
 
   /// Why, when unavailable. Without this the banner cannot distinguish "your
@@ -38,17 +39,17 @@ class TierBanner extends StatelessWidget {
   static int pairwiseQuestions(int n) => n < 2 ? 0 : (n * (n - 1)) ~/ 2;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final n = blockCount ?? 0;
     final questions = pairwiseQuestions(n);
 
     final onWeb = status == BarometerStatus.unsupportedPlatform;
 
-    final title = available
-        ? 'Barometer dikesan'
+    final title = tr(ref, available
+        ? 'tier.detected'
         : onWeb
-            ? 'Barometer tidak boleh dibaca di pelayar'
-            : 'Tiada barometer';
+            ? 'tier.browser'
+            : 'tier.none');
 
     final fallbackNote = n >= 2
         ? 'Selepas berjalan, anda akan ditanya $questions soalan perbandingan '
@@ -110,7 +111,7 @@ class TierBanner extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       minimumSize: const Size(0, 32),
                     ),
-                    child: Text('Cuba kesan semula',
+                    child: Text(tr(ref, 'tier.retry'),
                         style: AppText.sans(
                             size: 12, weight: FontWeight.w600, color: accent)),
                   ),
@@ -127,12 +128,12 @@ class TierBanner extends StatelessWidget {
 ///
 /// Relative to the pressure baseline captured before walking — never an
 /// absolute altitude, which a phone barometer cannot honestly claim.
-class AltitudeReadout extends StatelessWidget {
+class AltitudeReadout extends ConsumerWidget {
   final double? relativeM;
   const AltitudeReadout({super.key, required this.relativeM});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final has = relativeM != null;
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(has ? Icons.height : Icons.height_outlined,
@@ -147,7 +148,7 @@ class AltitudeReadout extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 4),
-      Text('dari mula', style: AppText.sans(size: 10, color: AppColors.oliveLight)),
+      Text(tr(ref, 'tier.fromStart'), style: AppText.sans(size: 10, color: AppColors.oliveLight)),
     ]);
   }
 }

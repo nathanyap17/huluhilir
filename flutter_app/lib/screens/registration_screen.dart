@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../brand.dart';
+import '../i18n.dart';
 import '../tier_banner.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
@@ -84,7 +85,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final api = ref.read(apiClientProvider);
 
       if (!await api.health()) {
-        throw Exception('Tidak dapat sambung ke pelayan. Semak WiFi dan cuba lagi.');
+        throw Exception(tr(ref, 'reg.noServer'));
       }
 
       // A refused or unavailable fix must not end setup. Location here only
@@ -104,7 +105,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final hasBarometer = await ref.read(barometerAvailableProvider.future);
 
       final user = await api.createUser(
-        displayName: _nameController.text.trim().isEmpty ? 'Petani' : _nameController.text.trim(),
+        displayName: _nameController.text.trim().isEmpty ? tr(ref, 'reg.defaultName') : _nameController.text.trim(),
         district: district,
       );
       final farm = await api.createFarm(
@@ -153,7 +154,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       final farms = await api.listFarms();
       final demo = farms.firstWhere(
         (f) => (f['name'] as String).toLowerCase().contains('demo'),
-        orElse: () => throw Exception('Ladang demo tiada pada pelayan.'),
+        orElse: () => throw Exception(tr(ref, 'reg.noDemo')),
       );
 
       final user = await api.getUser(demo['user_id'] as String);
@@ -182,23 +183,24 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const Text('Dari hulu ke hilir — sebelum penyakit sampai.',
-              style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
+          Text(tr(ref, 'app.tagline'),
+              style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic)),
           const SizedBox(height: 24),
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Nama anda', border: OutlineInputBorder()),
+            decoration: InputDecoration(
+                labelText: tr(ref, 'reg.yourName'), border: const OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _districtController,
-            decoration: const InputDecoration(labelText: 'Daerah', border: OutlineInputBorder()),
+            decoration: InputDecoration(labelText: tr(ref, 'reg.district'), border: const OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _farmNameController,
-            decoration:
-                const InputDecoration(labelText: 'Nama ladang', border: OutlineInputBorder()),
+            decoration: InputDecoration(
+                labelText: tr(ref, 'reg.farmName'), border: const OutlineInputBorder()),
           ),
           const SizedBox(height: 20),
           // The registration banner is the first place a farmer learns which
@@ -233,7 +235,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
             child: _busy
                 ? const SizedBox(
                     height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('MULA', style: TextStyle(fontSize: 18)),
+                : Text(tr(ref, 'reg.start'), style: const TextStyle(fontSize: 18)),
           ),
           const SizedBox(height: 12),
           // Setup requires walking the farm with a GPS fix, which nobody
@@ -243,7 +245,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
           // a pepper garden. Loads the seeded demo farm read-only instead.
           TextButton(
             onPressed: _busy ? null : _openDemoFarm,
-            child: const Text('Lihat ladang demo'),
+            child: Text(tr(ref, 'reg.viewDemo')),
           ),
         ]),
       ),

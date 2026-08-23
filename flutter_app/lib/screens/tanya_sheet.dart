@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../i18n.dart';
 import '../providers.dart';
 import '../speech.dart';
 import '../theme.dart';
@@ -36,11 +37,11 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
 
   /// Openers, so a farmer facing an empty text box has somewhere to start.
   /// Phrased as questions a farmer would actually ask, not as feature names.
-  static const _suggestions = [
-    'Apa punca penyakit busuk pangkal?',
-    'Kenapa hujan penting untuk semburan?',
-    'Bagaimana air membawa penyakit ke bawah?',
-  ];
+  /// A getter rather than a const list: these must follow the language
+  /// switch, and the question is also what gets SENT to the advisor, so a
+  /// stale Malay string in an English session would be asked in Malay too.
+  List<String> get _suggestions =>
+      [tr(ref, 'tanya.q1'), tr(ref, 'tanya.q2'), tr(ref, 'tanya.q3')];
 
   @override
   void dispose() {
@@ -60,7 +61,7 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
       setState(() {
         _history.insert(
           0,
-          _QA(question.trim(), answer?.isNotEmpty == true ? answer! : 'Tiada maklumat.'),
+          _QA(question.trim(), answer?.isNotEmpty == true ? answer! : tr(ref, 'tanya.noInfo')),
         );
         _controller.clear();
       });
@@ -88,7 +89,7 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
           padding: const EdgeInsets.all(24),
           child: Column(children: [
             Row(children: [
-              Text('TANYA', style: AppText.eyebrow()),
+              Text(tr(ref, 'tanya.title'), style: AppText.eyebrow()),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.olive),
@@ -99,7 +100,7 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Penerangan sahaja — dos dan masa semburan datang dari cadangan rasmi.',
+                tr(ref, 'tanya.disclaimer'),
                 style: AppText.sans(size: 11, color: AppColors.oliveLight)
                     .copyWith(fontStyle: FontStyle.italic),
               ),
@@ -110,7 +111,7 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
                   ? ListView(
                       controller: scrollController,
                       children: [
-                        Text('Contoh soalan:',
+                        Text(tr(ref, 'tanya.examples'),
                             style: AppText.sans(size: 12, color: AppColors.oliveLight)),
                         const SizedBox(height: 12),
                         for (final s in _suggestions)
@@ -151,7 +152,7 @@ class _TanyaSheetState extends ConsumerState<TanyaSheet> {
                   textInputAction: TextInputAction.send,
                   onSubmitted: _ask,
                   decoration: InputDecoration(
-                    hintText: 'Tanya sesuatu…',
+                    hintText: tr(ref, 'tanya.placeholder'),
                     filled: true,
                     fillColor: Colors.white,
                     border: OutlineInputBorder(
@@ -204,7 +205,7 @@ class _AnswerCard extends ConsumerWidget {
           alignment: Alignment.centerRight,
           child: IconButton(
             icon: const Icon(Icons.volume_up, size: 20, color: AppColors.oliveLight),
-            tooltip: 'Dengar',
+            tooltip: tr(ref, 'dash.listen'),
             onPressed: () => speak(context, ref, qa.answer),
           ),
         ),

@@ -21,6 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../brand.dart';
+import '../i18n.dart';
 import '../theme.dart';
 import 'dashboard_screen.dart';
 
@@ -42,48 +43,46 @@ class TerrainDerivedScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.cream,
       appBar: AppBar(
-        title: const Text('Peta Ladang Siap'),
+        title: Text(tr(ref, 'derived.title')),
         actions: const [BrandLogoAction()],
         automaticallyImplyLeading: false,
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
-          Text('AUTOMATIK', style: AppText.eyebrow()),
+          Text(tr(ref, 'derived.auto'), style: AppText.eyebrow()),
           const SizedBox(height: 8),
           Text(
-            'Kami sudah tahu arah air ladang anda.',
+            tr(ref, 'derived.headline'),
             style: AppText.serif(size: 27, weight: FontWeight.w600, color: AppColors.olive),
           ),
           const SizedBox(height: 12),
           Text(
-            'Barometer telefon anda merekod ketinggian sepanjang anda berjalan. '
-            'Susunan blok dari hulu ke hilir dikira sendiri — anda tidak perlu '
-            'menjawab satu soalan pun.',
+            tr(ref, 'derived.body'),
             style: AppText.sans(size: 14, color: AppColors.charcoal),
           ),
           const SizedBox(height: 20),
 
           Row(children: [
-            _Stat(value: '${blocks.length}', label: 'blok'),
+            _Stat(value: '${blocks.length}', label: tr(ref, 'derived.blocks')),
             const SizedBox(width: 12),
             _Stat(
               value: totalFall == null ? '—' : '${totalFall.toStringAsFixed(1)} m',
-              label: 'beza tinggi',
+              label: tr(ref, 'derived.drop'),
             ),
             const SizedBox(width: 12),
-            _Stat(value: '$edgesCreated', label: 'laluan air'),
+            _Stat(value: '$edgesCreated', label: tr(ref, 'derived.paths')),
           ]),
 
           const SizedBox(height: 24),
-          Text('HULU → HILIR', style: AppText.eyebrow()),
+          Text(tr(ref, 'derived.order'), style: AppText.eyebrow()),
           const SizedBox(height: 10),
 
           for (var i = 0; i < blocks.length; i++) _Step(row: blocks[i], isFirst: i == 0),
 
           const SizedBox(height: 12),
           Text(
-            'Anggaran sahaja — bukan ukuran lapangan.',
+            tr(ref, 'dash.terrainNote'),
             style: AppText.sans(size: 11, color: AppColors.oliveLight)
                 .copyWith(fontStyle: FontStyle.italic),
           ),
@@ -94,7 +93,7 @@ class TerrainDerivedScreen extends ConsumerWidget {
               (route) => false,
             ),
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
-            child: const Text('TERUSKAN', style: TextStyle(fontSize: 17)),
+            child: Text(tr(ref, 'derived.continue'), style: const TextStyle(fontSize: 17)),
           ),
         ],
       ),
@@ -140,13 +139,13 @@ class _Stat extends StatelessWidget {
   }
 }
 
-class _Step extends StatelessWidget {
+class _Step extends ConsumerWidget {
   final Map<String, dynamic> row;
   final bool isFirst;
   const _Step({required this.row, required this.isFirst});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final drop = row['drop_from_above_m'] as num?;
     final baro = row['baro_rel_m'] as num?;
 
@@ -160,7 +159,9 @@ class _Step extends StatelessWidget {
             Icon(Icons.south, size: 13, color: AppColors.oliveLight),
             const SizedBox(width: 4),
             Text(
-              drop == null ? 'ke bawah' : 'turun ${drop.abs().toStringAsFixed(1)} m',
+              drop == null
+                  ? '↓'
+                  : '${tr(ref, 'derived.down')} ${drop.abs().toStringAsFixed(1)} m',
               style: AppText.sans(size: 11, color: AppColors.oliveLight),
             ),
           ]),

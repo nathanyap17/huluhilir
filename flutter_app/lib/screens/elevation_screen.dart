@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../brand.dart';
 import '../models.dart';
+import '../i18n.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
 import 'terrain_derived_screen.dart';
@@ -116,7 +117,7 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Ralat'), actions: const [BrandLogoAction()]),
+        appBar: AppBar(title: Text(tr(ref, 'error.title')), actions: const [BrandLogoAction()]),
         body: Padding(padding: const EdgeInsets.all(20), child: Text(_error!)),
       );
     }
@@ -137,10 +138,10 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
           const SizedBox(height: 32),
           const Icon(Icons.water_drop, size: 56, color: Color(0xFF1565C0)),
           const SizedBox(height: 20),
-          const Text(
-            'Jika hujan lebat, air mengalir dari blok mana ke blok mana?',
+          Text(
+            tr(ref, 'elev.question'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 36),
           _FlowChoice(
@@ -156,7 +157,7 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
           ),
           const Spacer(),
           Text(
-            'Jawapan anda adalah muktamad — sistem tidak akan menggantikannya.',
+            tr(ref, 'elev.final'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),

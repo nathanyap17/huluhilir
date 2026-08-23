@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'models.dart';
+import 'i18n.dart';
 import 'providers.dart';
 import 'terrain_canvas.dart' show TerrainCanvas;
 import 'theme.dart';
@@ -26,14 +27,6 @@ final blockDetailProvider =
   return ref.watch(apiClientProvider).blockDetail(blockId);
 });
 
-const _classLabelMs = {
-  'healthy_leaf': 'SIHAT (DAUN)',
-  'healthy_collar': 'SIHAT (PANGKAL)',
-  'foliar_yellowing': 'DAUN MENGUNING',
-  'collar_lesion': 'LESI PANGKAL',
-  'defoliation_wilt': 'GUGUR DAUN / LAYU',
-  'unrelated': 'TIADA KAITAN',
-};
 
 class BlockProfileCard extends ConsumerWidget {
   final BlockModel block;
@@ -149,10 +142,10 @@ class BlockProfileCard extends ConsumerWidget {
             children: [
               Row(children: [
                 Expanded(
-                  child: Text('Saliran: ${block.drainage}', style: AppText.sans(size: 12)),
+                  child: Text('${tr(ref, 'block.drainage')}: ${block.drainage}', style: AppText.sans(size: 12)),
                 ),
                 if (block.vineCount != null)
-                  Text('${block.vineCount} pokok', style: AppText.sans(size: 12)),
+                  Text('${block.vineCount} ${tr(ref, 'block.vines')}', style: AppText.sans(size: 12)),
               ]),
               detail.when(
                 loading: () => const Padding(
@@ -164,7 +157,7 @@ class BlockProfileCard extends ConsumerWidget {
                 ),
                 error: (e, _) => Padding(
                   padding: const EdgeInsets.only(top: 10),
-                  child: Text('Sejarah tidak dapat dimuatkan.',
+                  child: Text(tr(ref, 'block.historyFailed'),
                       style: AppText.sans(size: 11, color: AppColors.oliveLight)),
                 ),
                 data: (d) => _Detail(detail: d, mediaUrl: api.mediaUrl),
@@ -189,13 +182,13 @@ class BlockProfileCard extends ConsumerWidget {
   }
 }
 
-class _Detail extends StatelessWidget {
+class _Detail extends ConsumerWidget {
   final Map<String, dynamic> detail;
   final String Function(String) mediaUrl;
   const _Detail({required this.detail, required this.mediaUrl});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final voice = detail['voice_label_uri'] as String?;
     final observations = (detail['observations'] as List?) ?? const [];
     final baro = detail['baro_rel_m'] as num?;
@@ -211,10 +204,10 @@ class _Detail extends StatelessWidget {
       ],
 
       const SizedBox(height: 12),
-      Text('SEJARAH', style: AppText.eyebrow()),
+      Text(tr(ref, 'block.history'), style: AppText.eyebrow()),
       const SizedBox(height: 6),
       if (observations.isEmpty)
-        Text('Belum ada gambar untuk blok ini.',
+        Text(tr(ref, 'block.noPhotos'),
             style: AppText.sans(size: 12, color: AppColors.oliveLight))
       else
         ConstrainedBox(
@@ -231,13 +224,13 @@ class _Detail extends StatelessWidget {
   }
 }
 
-class _HistoryRow extends StatelessWidget {
+class _HistoryRow extends ConsumerWidget {
   final Map<String, dynamic> row;
   final String Function(String) mediaUrl;
   const _HistoryRow({required this.row, required this.mediaUrl});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final cls = row['predicted_class'] as String?;
     final conf = row['confidence'] as num?;
     final low = row['below_threshold'] == true;
@@ -262,7 +255,7 @@ class _HistoryRow extends StatelessWidget {
       const SizedBox(width: 10),
       Expanded(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(cls == null ? 'Tiada diagnosis' : (_classLabelMs[cls] ?? cls),
+          Text(cls == null ? tr(ref, 'block.noPhotos') : classLabel(cls, ref.watch(langProvider)),
               style: AppText.sans(size: 12, weight: FontWeight.w600)),
           Text(
             '$when${conf != null ? ' · ${(conf * 100).toStringAsFixed(0)}%' : ''}',
@@ -271,7 +264,7 @@ class _HistoryRow extends StatelessWidget {
           // Surfaced rather than hidden: a low-confidence call must read as
           // "go and look", not as a diagnosis (huluhilir-rules §9).
           if (low)
-            Text('Keyakinan rendah — periksa sendiri',
+            Text(tr(ref, 'block.lowConfidence'),
                 style: AppText.sans(size: 10, color: AppColors.terracotta)),
         ]),
       ),
@@ -321,7 +314,7 @@ class _VoiceLabelButtonState extends State<_VoiceLabelButton> {
           ? const SizedBox(
               width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.play_arrow, size: 18),
-      label: const Text('Dengar nama blok'),
+      label: Consumer(builder: (context, ref, _) => Text(tr(ref, 'block.playLabel'))),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.olive,
         side: const BorderSide(color: AppColors.hairline),

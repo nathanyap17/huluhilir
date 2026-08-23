@@ -9,6 +9,7 @@ import 'package:record/record.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 
 import '../brand.dart';
+import '../i18n.dart';
 import '../tier_banner.dart';
 import '../walk_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -201,7 +202,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
 
       setState(() => _captured.add(block));
     } catch (e) {
-      _showError('Gagal simpan blok: $e');
+      _showError('${tr(ref, 'walk.saveFailed')}: $e');
     }
   }
 
@@ -232,7 +233,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     }
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Ralat'), actions: const [BrandLogoAction()]),
+        appBar: AppBar(title: Text(tr(ref, 'error.title')), actions: const [BrandLogoAction()]),
         body: Padding(padding: const EdgeInsets.all(20), child: Text(_error!)),
       );
     }
@@ -243,20 +244,20 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
     final hasBarometer = ref.watch(sessionProvider).farm?.barometerAvailable ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Jalan Ladang'), actions: const [BrandLogoAction()]),
+      appBar: AppBar(title: Text(tr(ref, 'walk.title')), actions: const [BrandLogoAction()]),
       body: Column(children: [
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           color: Colors.green.shade50,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Jalan ke setiap blok lada anda.',
+            Text(tr(ref, 'walk.instruction'),
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text(
               accuracy == null
-                  ? 'Menunggu GPS...'
-                  : 'Ketepatan GPS: ${accuracy.toStringAsFixed(0)} m',
+                  ? tr(ref, 'walk.waitingGps')
+                  : '${tr(ref, 'walk.gpsAccuracy')}: ${accuracy.toStringAsFixed(0)} m',
               style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
             ),
             // Live relative altitude, so a farmer on an OPTIMISED phone can
@@ -268,8 +269,8 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             ],
             Text(
               _offline
-                  ? 'Luar talian — ${_unflushed.length} sampel menunggu'
-                  : 'Jejak: $_flushedCount sampel disimpan',
+                  ? '${tr(ref, 'walk.offline')} — ${_unflushed.length} ${tr(ref, 'walk.pendingSamples')}'
+                  : '${tr(ref, 'walk.trace')}: $_flushedCount ${tr(ref, 'walk.samplesSaved')}',
               style: TextStyle(
                 fontSize: 12,
                 color: _offline ? Colors.orange.shade800 : Colors.grey.shade600,
@@ -301,7 +302,7 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
         ),
         Expanded(
           child: _captured.isEmpty
-              ? const Center(child: Text('Belum ada blok direkod'))
+              ? Center(child: Text(tr(ref, 'diag.noBlocks')))
               : ListView.builder(
                   itemCount: _captured.length,
                   itemBuilder: (_, i) {

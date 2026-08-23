@@ -11,6 +11,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../i18n.dart';
 import '../providers.dart';
 import '../theme.dart';
 import 'tanya_sheet.dart';
@@ -37,7 +38,7 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Text('TETAPAN', style: AppText.eyebrow()),
+          Text(tr(ref, 'settings.title'), style: AppText.eyebrow()),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.close, color: AppColors.olive),
@@ -48,7 +49,7 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              '${farm.name} · ${farm.elevationTier == 'optimised' ? 'Barometer dikesan' : 'Tiada barometer'}',
+              '${farm.name} · ${tr(ref, farm.elevationTier == 'optimised' ? 'tier.detected' : 'tier.none')}',
               style: AppText.sans(size: 12, color: AppColors.oliveLight),
             ),
           ),
@@ -57,8 +58,8 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
 
         _Row(
           icon: Icons.chat_bubble_outline,
-          title: 'Tanya',
-          subtitle: 'Soalan tentang penyakit dan parit',
+          title: tr(ref, 'settings.ask'),
+          subtitle: tr(ref, 'settings.askSub'),
           onTap: () {
             Navigator.pop(context);
             showModalBottomSheet(
@@ -79,9 +80,9 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
           value: notify,
           activeThumbColor: AppColors.olive,
           onChanged: (v) => ref.read(rainAlertsEnabledProvider.notifier).set(v),
-          title: Text('Peringatan hujan',
+          title: Text(tr(ref, 'settings.rainAlerts'),
               style: AppText.sans(size: 15, weight: FontWeight.w600, color: AppColors.charcoal)),
-          subtitle: Text('Papar amaran bila hujan lebat dijangka',
+          subtitle: Text(tr(ref, 'settings.rainAlertsSub'),
               style: AppText.sans(size: 12, color: AppColors.oliveLight)),
           secondary: const Icon(Icons.notifications_outlined, color: AppColors.olive),
         ),
@@ -90,15 +91,14 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
 
         _Row(
           icon: Icons.logout,
-          title: 'Log keluar',
-          subtitle: 'Ladang kekal di pelayan — anda boleh masuk semula',
+          title: tr(ref, 'settings.logout'),
+          subtitle: tr(ref, 'settings.logoutSub'),
           onTap: () async {
             final ok = await _confirm(
               context,
-              title: 'Log keluar?',
-              body: 'Ladang anda kekal disimpan. Anda perlu daftar semula pada telefon ini '
-                  'untuk membukanya.',
-              confirmLabel: 'LOG KELUAR',
+              title: tr(ref, 'settings.logout'),
+              body: tr(ref, 'settings.logoutSub'),
+              confirmLabel: tr(ref, 'settings.logout'),
             );
             if (ok != true || !context.mounted) return;
             await ref.read(sessionProvider.notifier).signOut();
@@ -108,16 +108,15 @@ class _SettingsSheetState extends ConsumerState<SettingsSheet> {
 
         _Row(
           icon: Icons.restart_alt,
-          title: 'Tetapkan semula ladang',
-          subtitle: 'Padam sesi tempatan dan mula semula',
+          title: tr(ref, 'settings.reset'),
+          subtitle: tr(ref, 'settings.resetSub'),
           danger: true,
           onTap: () async {
             final ok = await _confirm(
               context,
-              title: 'Tetapkan semula?',
-              body: 'Anda perlu berjalan dan menanda semula setiap blok. '
-                  'Tindakan ini tidak boleh dibatalkan pada telefon ini.',
-              confirmLabel: 'TETAPKAN SEMULA',
+              title: tr(ref, 'settings.reset'),
+              body: tr(ref, 'settings.resetSub'),
+              confirmLabel: tr(ref, 'settings.reset'),
               danger: true,
             );
             if (ok != true || !context.mounted) return;
@@ -146,7 +145,7 @@ Future<bool?> _confirm(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('BATAL'),
+          child: Text(trFor(AppLang.ms, 'common.cancel')),
         ),
         FilledButton(
           style: FilledButton.styleFrom(

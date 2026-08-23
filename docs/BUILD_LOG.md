@@ -820,3 +820,21 @@ There was no `ios/` project at all — generated, with `NSMotionUsageDescription
 **This does not make the barometer work in a browser.** Safari on iOS exposes no barometric pressure — no browser does — so an iPhone tested through the web app will always report the sensor unavailable, correctly. Reading it needs a native build, and building for iOS needs a Mac with Xcode.
 
 ---
+
+## [i18n complete] EN ⇄ BM across the app
+
+115 keys, and a scripted parity check that both tables carry exactly the same set — an English session silently falling back to Malay for a missed key is the failure mode this catches, and it is invisible unless tested for.
+
+Converted: dashboard, diagnosis, walk, registration, elevation, settings, Tanya, block profile, tier banner, derived-terrain. Untranslated keys still fall back to Malay rather than rendering a bare key, because a mixed-language screen is cosmetic and `dash.title` in the middle of a farmer's dashboard is not.
+
+Three things needed more than a string swap:
+
+- **`tr()` is a method call, so it cannot appear in a `const` context.** Several `InputDecoration`s, `ButtonSegment`s and `Text`s had to drop `const` — the analyzer caught every one, but it is worth knowing before converting another screen.
+- **Tanya's example questions were `static const`.** They are not just displayed, they are the text SENT to the advisor, so a stale Malay constant in an English session would have been *asked* in Malay too. Now a getter that reads the current language.
+- **The six class labels existed twice** — `_classLabelMs` in `block_profile.dart` and `classLabels` in `i18n.dart`. Deleted the local copy: two tables of the same six labels is exactly how a spoken diagnosis and a written one end up disagreeing.
+
+`terrain_canvas.dart`'s legend keeps its Malay labels. It is the emergency 2D fallback, not on the normal path, and converting a plain `StatefulWidget` to a `Consumer` for three words was not worth the churn on a file that exists to be reliable.
+
+Verified after deploy in both artefacts rather than assumed: the English strings are present in the served `main.dart.js` **and** in the APK's compiled `libapp.so`. The APK byte size was unchanged from the previous build, which looked like a stale artefact until the AOT library was checked directly.
+
+---
