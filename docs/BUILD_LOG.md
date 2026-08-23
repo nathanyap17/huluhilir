@@ -750,3 +750,22 @@ The deferral is shown before the steps, because "why not just spray now" is the 
 An empty step list renders as "no tool calls were recorded for this decision" rather than looking like a failed load — the two must stay distinguishable for the same reason the classifier's silent `unrelated` fallback had to go.
 
 ---
+
+## [i18n] English ⇄ Malay, and Iban speech on the priority action
+
+Malay stays the default and stays primary: the farmers this is built for read Bahasa Malaysia, and English exists for judges and extension officers. `tr()` falls back to the Malay string when an English one is missing rather than rendering a bare key — a farmer seeing Malay in an English session is cosmetic; a screen of `dash.title` is a broken app.
+
+**Iban is deliberately not a UI language.** It is offered for *speech*, on the priority action specifically, because that is the one string a farmer must not misunderstand. Machine-translating the whole interface into Iban would produce text no Iban speaker vouched for, which is worse than not offering it.
+
+Verified live: *"Bersihkan parit hari ini. Semburkan pada pagi Khamis."* → *"Beresi parit sehari tu. Semburka ba pagi Khamis."*
+
+Two things are disclosed rather than hidden, both in the API response and in the UI:
+
+- `translation_source: "machine"` — no Iban speaker has verified this. The Iban text is returned and shown on screen **beside** the Malay, never instead of it, so a farmer or an officer can see what was actually said. Handing someone unverified advice they cannot inspect would be worse than the language gap it closes.
+- `voice_is_iban: false` — Cloud TTS has no Iban voice and neither does any major provider, so the audio is the Malay voice reading Iban words. Shared phonology and Latin orthography make that intelligible, not correct. The real fix is `facebook/mms-tts-iba`, which is exactly why the unwired `tts/` service is still in the repo.
+
+The translator is instructed to keep numbers, units and day names verbatim, to keep the Malay word where no common Iban equivalent exists rather than inventing one, and never to add advice, chemicals, doses or timings absent from the source. A translation failure speaks the original Malay rather than failing silent.
+
+Where `slot_vocabulary.text_iba` holds a native-speaker-verified term, that is still preferred over anything generated here.
+
+---

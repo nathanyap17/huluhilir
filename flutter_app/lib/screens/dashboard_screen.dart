@@ -96,14 +96,14 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _Header extends ConsumerWidget {
   final String farmName;
   final VoidCallback onRefresh;
   final VoidCallback onResetLongPress;
   const _Header({required this.farmName, required this.onRefresh, required this.onResetLongPress});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
       decoration: const BoxDecoration(
@@ -120,13 +120,14 @@ class _Header extends StatelessWidget {
               const BrandLogo(size: 38),
             ]),
             const SizedBox(height: 4),
-            Text('Dari hulu ke hilir — sebelum penyakit sampai.',
+            Text(tr(ref, 'app.tagline'),
                 style: AppText.sans(size: 13, weight: FontWeight.w500, color: AppColors.oliveLight)
                     .copyWith(fontStyle: FontStyle.italic)),
             const SizedBox(height: 2),
             Text(farmName, style: AppText.sans(size: 12, color: AppColors.charcoal)),
           ]),
         ),
+        const LangToggle(),
         IconButton(onPressed: onRefresh, icon: const Icon(Icons.refresh, color: AppColors.olive)),
         // Tetapan (settings). Long-press resets the farm -- deliberately
         // hidden behind a long-press so a stray tap can never wipe a farm
@@ -172,7 +173,7 @@ class _RainPulseCard extends ConsumerWidget {
         Row(children: [
           const Icon(Icons.water_drop, size: 16, color: AppColors.oliveLight),
           const SizedBox(width: 8),
-          Text('DENYUT HUJAN', style: AppText.eyebrow()),
+          Text(tr(ref, 'dash.rainPulse'), style: AppText.eyebrow()),
           const Spacer(),
           // Literacy is not assumed (huluhilir-rules §7). speechTemplateId is
           // passed through so the spoken line stays traceable to the phrasing
@@ -346,7 +347,7 @@ class _MainActionCard extends ConsumerWidget {
         boxShadow: softShadow(),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('TINDAKAN UTAMA', style: AppText.eyebrow(color: AppColors.olive)),
+        Text(tr(ref, 'dash.priorityAction'), style: AppText.eyebrow(color: AppColors.olive)),
         const SizedBox(height: 12),
         Text('$_actionMs — $_blockLabel${_terminal(action.reasonMs)}',
             style: AppText.serif(size: 20, weight: FontWeight.bold)),
@@ -378,11 +379,29 @@ class _MainActionCard extends ConsumerWidget {
               ),
             ),
             const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.volume_up, color: AppColors.olive),
+            // Three languages on the action specifically, because this is the
+            // one string a farmer must not misunderstand. Iban is offered and
+            // labelled as machine-translated -- speak() discloses that and
+            // shows the Iban text, since an unverified translation nobody can
+            // see is not something to hand someone as advice.
+            PopupMenuButton<String>(
               tooltip: tr(ref, 'dash.listen'),
-              onPressed: () =>
-                  speak(context, ref, action.reasonMs, templateId: action.speechTemplateId),
+              icon: const Icon(Icons.volume_up, color: AppColors.olive),
+              onSelected: (lang) => speak(
+                context,
+                ref,
+                action.reasonMs,
+                language: lang,
+                templateId: action.speechTemplateId,
+              ),
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'ms', child: Text('Bahasa Malaysia')),
+                PopupMenuItem(value: 'en', child: Text('English')),
+                PopupMenuItem(
+                  value: 'iba',
+                  child: Text('Iban (terjemahan mesin)'),
+                ),
+              ],
             ),
           ]),
         ],

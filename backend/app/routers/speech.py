@@ -183,6 +183,27 @@ async def say(req: SayRequest, session: AsyncSession = Depends(get_session)) -> 
     text = (req.slots.get("text") or "").strip()
     if not text:
         raise HTTPException(422, "slots.text is required and must be non-empty")
+
+    lang = req.language.value if isinstance(req.language, Language) else str(req.language)
+
+    # Iban is spoken, but it is MACHINE-translated and the response says so.
+    # The Iban text comes back to the caller so the UI can show it beside the
+    # Malay rather than replacing it -- an unverified translation a farmer
+    # cannot see is not something to hand them as advice.
+    if lang == "iba":
+        from app.speech.iban import to_iban
+
+        iban_text, source = await to_iban(text)
+        out = await _synthesize_cached(
+            iban_text, req.language, session, template_id=req.template_id or "_adhoc"
+        )
+        out["source_text"] = text
+        out["translation_source"] = source
+        # Stated explicitly: there is no Iban voice in Cloud TTS, so this is a
+        # Malay voice reading Iban words.
+        out["voice_is_iban"] = False
+        return out
+
     return await _synthesize_cached(
         text, req.language, session, template_id=req.template_id or "_adhoc"
     )

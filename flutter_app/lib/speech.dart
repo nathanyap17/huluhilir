@@ -31,6 +31,32 @@ Future<void> speak(
     final api = ref.read(apiClientProvider);
     final result = await api.say(text, language: language, templateId: templateId);
 
+    // Iban is machine-translated with no Iban voice available, so the UI
+    // discloses both rather than letting it pass as verified Iban speech.
+    if (language == 'iba') {
+      final translated = result['text'] as String?;
+      final src = result['translation_source'];
+      if (translated != null && translated.isNotEmpty) {
+        messenger.showSnackBar(SnackBar(
+          duration: const Duration(seconds: 6),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(translated),
+              const SizedBox(height: 4),
+              Text(
+                src == 'machine'
+                    ? 'Terjemahan mesin · suara Melayu (tiada suara Iban)'
+                    : 'Terjemahan gagal — dibaca dalam bahasa asal',
+                style: const TextStyle(fontSize: 11),
+              ),
+            ],
+          ),
+        ));
+      }
+    }
+
     final uri = result['audio_uri'] as String?;
     if (uri == null) {
       messenger.showSnackBar(SnackBar(
