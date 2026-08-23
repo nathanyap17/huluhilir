@@ -1,5 +1,6 @@
 
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,19 +12,45 @@ import 'outbox.dart';
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
 final outboxProvider = Provider<Outbox>((ref) => Outbox());
 
-/// Device capability probe. Detection is automatic and silent -- the farmer is
-/// never asked whether their phone has a barometer (docs/PROJECT_SPEC.md §4).
+/// Why a barometer is or is not usable, not merely whether it is.
 ///
-/// Emulators and budget phones report no barometer, which selects the MINIMAL
-/// tier. PROJECT_SPEC §4 is explicit that MINIMAL loses NO functionality --
-/// it only makes setup slower (more pairwise questions).
-final barometerAvailableProvider = FutureProvider<bool>((ref) async {
+/// A bare `false` was actively misleading: an iPhone 14 Pro tested through
+/// the **web** app reported "no barometer" despite having one, because no
+/// browser can reach it -- and the UI could not tell the farmer that, so it
+/// read as a broken detector on capable hardware.
+enum BarometerStatus {
+  /// Sensor present and emitting.
+  available,
+
+  /// The platform itself cannot expose barometric pressure. This is the web:
+  /// there is no Web Barometer API, and sensors_plus returns an empty stream
+  /// on purpose (see its web_sensors.dart -- "The Barometer API does not
+  /// exist and so is not supported by any modern browser"). No setting the
+  /// farmer can change will alter this; only the installed app can read it.
+  unsupportedPlatform,
+
+  /// Native platform that could expose one, but this device did not produce
+  /// a reading -- genuinely absent, or momentarily unreadable. Worth a retry.
+  notDetected,
+}
+
+/// Device capability probe. Detection stays automatic and silent -- the
+/// farmer is never *asked* whether their phone has a barometer
+/// (docs/PROJECT_SPEC.md §4). Reporting the outcome is not the same as
+/// asking, and PROJECT_SPEC §4 is explicit that MINIMAL loses no
+/// functionality; it only makes setup slower (more pairwise questions).
+final barometerStatusProvider = FutureProvider<BarometerStatus>((ref) async {
+  if (kIsWeb) return BarometerStatus.unsupportedPlatform;
   try {
-    await barometerEventStream().first.timeout(const Duration(seconds: 2));
-    return true;
+    await barometerEventStream().first.timeout(const Duration(seconds: 3));
+    return BarometerStatus.available;
   } catch (_) {
-    return false;
+    return BarometerStatus.notDetected;
   }
+});
+
+final barometerAvailableProvider = FutureProvider<bool>((ref) async {
+  return (await ref.watch(barometerStatusProvider.future)) == BarometerStatus.available;
 });
 
 /// The active session: who the farmer is and which farm they're managing.

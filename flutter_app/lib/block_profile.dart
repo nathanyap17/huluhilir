@@ -116,13 +116,27 @@ class BlockProfileCard extends ConsumerWidget {
                 ],
               ),
             ),
+            // Sits over an arbitrary photo, so it carries its own dark disc
+            // rather than relying on the scrim for contrast. 44x44 is the
+            // minimum comfortable touch target, and this is the only close
+            // affordance on the card -- the terrain views used to stack a
+            // second, smaller one on top of it.
             if (onClose != null)
               Positioned(
-                right: 2,
-                top: 2,
-                child: IconButton(
-                  icon: const Icon(Icons.close, size: 20, color: Colors.white),
-                  onPressed: onClose,
+                right: 6,
+                top: 6,
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.42),
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onClose,
+                    child: const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(Icons.close, size: 22, color: Colors.white),
+                    ),
+                  ),
                 ),
               ),
           ]),

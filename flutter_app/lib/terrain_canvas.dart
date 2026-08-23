@@ -28,7 +28,7 @@ class TerrainCanvas extends StatefulWidget {
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
   final void Function(String blockId)? onTapBlock;
-  final Widget Function(String blockId)? profileBuilder;
+  final Widget Function(String blockId, VoidCallback onClose)? profileBuilder;
 
   const TerrainCanvas({
     super.key,
@@ -142,7 +142,10 @@ class _TerrainCanvasState extends State<TerrainCanvas> {
                 right: 12,
                 child: _ProfileOverlay(
                   onClose: () => setState(() => _openProfileBlockId = null),
-                  child: widget.profileBuilder!(_openProfileBlockId!),
+                  child: widget.profileBuilder!(
+                    _openProfileBlockId!,
+                    () => setState(() => _openProfileBlockId = null),
+                  ),
                 ),
               ),
           ]),

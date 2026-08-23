@@ -24,7 +24,7 @@ class Terrain3DView extends ConsumerStatefulWidget {
   final List<TerrainNode> nodes;
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
-  final Widget Function(String blockId) profileBuilder;
+  final Widget Function(String blockId, VoidCallback onClose) profileBuilder;
   final double height;
 
   const Terrain3DView({
@@ -149,7 +149,7 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
             Positioned(
               top: 12,
               right: 12,
-              child: _ProfileCard(onClose: _closeProfile, child: widget.profileBuilder(_selectedBlockId!)),
+              child: widget.profileBuilder(_selectedBlockId!, _closeProfile),
             ),
         ]),
       ),
@@ -157,36 +157,3 @@ class _Terrain3DViewState extends ConsumerState<Terrain3DView> {
   }
 }
 
-class _ProfileCard extends StatelessWidget {
-  final Widget child;
-  final VoidCallback onClose;
-  const _ProfileCard({required this.child, required this.onClose});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      constraints: const BoxConstraints(maxHeight: 420),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: softShadow(tint: const Color(0x33000000)),
-      ),
-      child: Stack(children: [
-        Padding(padding: const EdgeInsets.only(top: 8), child: child),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.85),
-              minimumSize: const Size(28, 28),
-            ),
-            onPressed: onClose,
-          ),
-        ),
-      ]),
-    );
-  }
-}

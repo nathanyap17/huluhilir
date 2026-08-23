@@ -660,3 +660,37 @@ Autonomous flow driven end-to-end against the live service (0 questions, correct
 - Test farms (`Durability Probe Farm`, `nCr Probe`, `Auto Terrain Probe`) are visible on `/farms`; delete before the pitch.
 
 ---
+
+## [Backend swap attempt] Gemini vision classifier — implemented, wired, NOT working
+
+`app/tools/diagnose_gemini.py` plus a `CLASSIFIER_BACKEND` switch (`onnx` | `gemini`). Both backends return the identical six-class `DiagnoseLeafResult`, and neither can reach the rules table — swapping the vision backend cannot touch dose, product or timing (§2), because the module has no access to them.
+
+**Status: it does not work yet, and the live service is back on `onnx`.** Every observation falls through to the CNN. Do not describe this backend as operational.
+
+### What the attempt did establish
+
+Three real defects were found and fixed on the way, each worth keeping:
+
+1. **`model_version` overflowed `String(20)`.** `gemini::vertex_ai/gemini-2.5-flash` is 34 characters; Postgres rejected the row outright (`StringDataRightTruncationError`) where SQLite would have truncated silently. Now stores the bare model name, clamped.
+
+2. **A silent fallback to `unrelated` was masking total failure.** The first version returned `unrelated` on any parse failure. Tested against flat colour fields it looked *correct* — `unrelated` is the right answer for those — while in fact the parse was failing every time. A backend in that state would have returned `unrelated` for genuinely diseased leaves too, and nothing in the response would have shown it. **An unparseable reply now raises**, handing the observation to the local CNN, and `model_version` in the stored row says which model actually decided. That field is what proved the backend was dead.
+
+3. **Gemini 2.5 spends `max_tokens` on reasoning tokens before emitting content.** At `max_tokens=160` the budget was consumed thinking and `content` came back empty. Raised to 2048.
+
+### What is still wrong
+
+After those fixes the call still fails, now *instantly* (~45 ms), which rules out a timeout and points at the request being rejected before it reaches the model. `response_format={"type": "json_object"}` was suspected and removed; behaviour unchanged. The exception text is not visible because **uvicorn's logging config does not propagate module-level loggers to stdout on Cloud Run** — that is the next thing to fix, because debugging blind is what made this take as long as it did.
+
+Locally the same path fails differently and unrelatedly: ADC lacks `aiplatform.endpoints.predict`, so it cannot be reproduced off Cloud Run without granting that first.
+
+### On reporting accuracy — this matters more than the code
+
+The **0.934 macro F1 belongs to the MobileNetV3-Small, measured on its own held-out test set.** It is a fact about that model and nothing else.
+
+If the deployed classifier becomes Gemini, that figure cannot be presented as the system's accuracy: the Gemini backend has never been evaluated on that test set, or on any test set. Quoting a number measured for one model as the performance of another is a fabricated result, and it is also fragile — the CNN's poor field generalisation is already demonstrable in about a minute by anyone who photographs a healthy leaf.
+
+The defensible framing, and the stronger one, is the sequence as it actually happened: a model was trained and scored 0.934 on held-out data; field testing showed it generalising poorly; that was diagnosed rather than papered over; a vision backend was built as the alternative. Reporting *that* costs nothing and demonstrates exactly the rigour the metric was supposed to stand for.
+
+If a number is wanted for whichever backend ships, it has to be measured on the same held-out set. That is a short evaluation script, not a claim.
+
+---

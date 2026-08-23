@@ -104,7 +104,27 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     if not local_path.is_file():
         raise HTTPException(400, f"image not found on server: {req.image_uri}")
 
-    result = diagnose_leaf(observation.observation_id, str(local_path), CaptureTarget(req.capture_target))
+    # Backend is configuration, not a code branch anyone downstream sees:
+    # both paths return the same six-class DiagnoseLeafResult, and neither can
+    # reach the rules table (huluhilir-rules §2).
+    if settings.classifier_backend == "gemini":
+        from app.tools.diagnose_gemini import diagnose_leaf_gemini
+
+        try:
+            result = await diagnose_leaf_gemini(
+                observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
+            )
+        except Exception:
+            # A vision call needs the network and can fail; the trained model
+            # is local and always available, so it is the fallback rather than
+            # the request erroring out on a farmer mid-cycle.
+            result = diagnose_leaf(
+                observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
+            )
+    else:
+        result = diagnose_leaf(
+            observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
+        )
 
     diagnosis = Diagnosis(
         observation_id=observation.observation_id,

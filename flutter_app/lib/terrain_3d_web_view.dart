@@ -23,7 +23,7 @@ class Terrain3DWebView extends ConsumerStatefulWidget {
   final List<TerrainNode> nodes;
   final List<FlowEdgeModel> edges;
   final Map<String, String> labels;
-  final Widget Function(String blockId) profileBuilder;
+  final Widget Function(String blockId, VoidCallback onClose) profileBuilder;
   final double height;
 
   const Terrain3DWebView({
@@ -85,17 +85,10 @@ class _Terrain3DWebViewState extends ConsumerState<Terrain3DWebView> {
               bottom: 12,
               child: Material(
                 color: Colors.transparent,
-                child: Stack(children: [
-                  widget.profileBuilder(_selectedBlockId!),
-                  Positioned(
-                    right: 4,
-                    top: 4,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, size: 20, color: AppColors.oliveLight),
-                      onPressed: () => setState(() => _selectedBlockId = null),
-                    ),
-                  ),
-                ]),
+                child: widget.profileBuilder(
+                  _selectedBlockId!,
+                  () => setState(() => _selectedBlockId = null),
+                ),
               ),
             ),
         ]),

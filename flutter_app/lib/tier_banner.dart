@@ -15,17 +15,24 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'providers.dart';
 import 'theme.dart';
 
 class TierBanner extends StatelessWidget {
   final bool available;
 
+  /// Why, when unavailable. Without this the banner cannot distinguish "your
+  /// phone has no barometer" from "no browser can read one" -- and stating
+  /// the first when the second is true is simply wrong on capable hardware.
+  final BarometerStatus? status;
+
   /// When set, the banner also states how many comparison questions the walk
   /// will end with — only meaningful on the minimal path.
   final int? blockCount;
 
-  const TierBanner({super.key, required this.available, this.blockCount});
+  const TierBanner({super.key, required this.available, this.blockCount, this.status});
 
   /// C(n, 2). The whole reason the barometer path is worth having.
   static int pairwiseQuestions(int n) => n < 2 ? 0 : (n * (n - 1)) ~/ 2;
@@ -35,15 +42,30 @@ class TierBanner extends StatelessWidget {
     final n = blockCount ?? 0;
     final questions = pairwiseQuestions(n);
 
-    final title = available ? 'Barometer dikesan' : 'Tiada barometer';
+    final onWeb = status == BarometerStatus.unsupportedPlatform;
+
+    final title = available
+        ? 'Barometer dikesan'
+        : onWeb
+            ? 'Barometer tidak boleh dibaca di pelayar'
+            : 'Tiada barometer';
+
+    final fallbackNote = n >= 2
+        ? 'Selepas berjalan, anda akan ditanya $questions soalan perbandingan '
+            '($n blok) untuk menentukan arah air.'
+        : 'Selepas berjalan, anda akan ditanya beberapa soalan perbandingan '
+            'untuk menentukan arah air.';
+
     final body = available
         ? 'Telefon anda boleh mengesan beza ketinggian sendiri. Ketinggian direkod '
             'sepanjang anda berjalan, jadi soalan arah air hanya ditanya bila perlu.'
-        : n >= 2
-            ? 'Telefon anda tiada sensor ketinggian. Selepas berjalan, anda akan '
-                'ditanya $questions soalan perbandingan ($n blok) untuk menentukan arah air.'
-            : 'Telefon anda tiada sensor ketinggian. Selepas berjalan, anda akan '
-                'ditanya beberapa soalan perbandingan untuk menentukan arah air.';
+        : onWeb
+            // Stated plainly because it is not the phone's fault and there is
+            // nothing to switch on: no browser exposes barometric pressure.
+            ? 'Pelayar web tidak boleh membaca sensor ketinggian, walaupun telefon '
+                'anda ada satu. Guna aplikasi Android untuk ciri itu. $fallbackNote'
+            : 'Telefon anda tiada sensor ketinggian, atau ia tidak dapat dibaca '
+                'sekarang. $fallbackNote';
 
     final accent = available ? AppColors.olive : AppColors.terracotta;
 
@@ -75,6 +97,25 @@ class TierBanner extends StatelessWidget {
             ]),
             const SizedBox(height: 5),
             Text(body, style: AppText.sans(size: 12, color: AppColors.charcoal)),
+            // Retry only where retrying can change the answer. Offering it on
+            // web would be theatre -- the platform cannot expose the sensor
+            // however many times it is asked.
+            if (status == BarometerStatus.notDetected)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Consumer(
+                  builder: (context, ref, _) => TextButton(
+                    onPressed: () => ref.invalidate(barometerStatusProvider),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: const Size(0, 32),
+                    ),
+                    child: Text('Cuba kesan semula',
+                        style: AppText.sans(
+                            size: 12, weight: FontWeight.w600, color: accent)),
+                  ),
+                ),
+              ),
           ]),
         ),
       ]),

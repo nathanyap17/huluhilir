@@ -391,7 +391,8 @@ class _TerrainCard extends StatelessWidget {
             nodes: data.terrainNodes,
             edges: data.terrainEdges,
             labels: labels,
-            profileBuilder: (blockId) => BlockProfileCard(
+            profileBuilder: (blockId, onClose) => BlockProfileCard(
+              onClose: onClose,
               block: data.blocks.firstWhere((b) => b.blockId == blockId),
               action: data.topAction?.blockId == blockId ? data.topAction : null,
             ),
@@ -401,7 +402,8 @@ class _TerrainCard extends StatelessWidget {
             nodes: data.terrainNodes,
             edges: data.terrainEdges,
             labels: labels,
-            profileBuilder: (blockId) => BlockProfileCard(
+            profileBuilder: (blockId, onClose) => BlockProfileCard(
+              onClose: onClose,
               block: data.blocks.firstWhere((b) => b.blockId == blockId),
               action: data.topAction?.blockId == blockId ? data.topAction : null,
             ),

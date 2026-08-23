@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # on CLOUD, `gcloud auth application-default login` locally. No key here.
     tts_language_default: str = "ms"
 
+    # Which L1 backend serves diagnoses: "onnx" (the trained MobileNetV3) or
+    # "gemini" (vision model via LiteLLM). Configuration only -- both return
+    # the identical six-class result shape, and neither can reach the rules
+    # table. Whichever is deployed, quote the accuracy measured for THAT
+    # backend; the CNN's 0.934 macro F1 is a fact about the CNN alone.
+    classifier_backend: str = "onnx"
+
     cnn_model_path: str = "../classifier/best-model/huluhilir_l1.onnx"
     cnn_labels_path: str = "../classifier/best-model/labels.txt"
     cnn_preprocess_path: str = "../classifier/best-model/preprocess.json"

@@ -279,7 +279,11 @@ class _WalkScreenState extends ConsumerState<WalkScreen> {
             // States the tier plainly, and on the minimal path says how many
             // comparison questions the walk will end with -- C(n,2) grows
             // fast and is better known before walking than discovered after.
-            TierBanner(available: hasBarometer, blockCount: _captured.length),
+            TierBanner(
+              available: hasBarometer,
+              blockCount: _captured.length,
+              status: ref.watch(barometerStatusProvider).valueOrNull,
+            ),
           ]),
         ),
         // Orientation while walking: the track so far plus what is already

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../brand.dart';
+import '../tier_banner.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
 import 'walk_screen.dart';
@@ -175,7 +176,6 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final barometer = ref.watch(barometerAvailableProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('HuluHilir'), actions: const [BrandLogoAction()]),
@@ -201,11 +201,20 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
                 const InputDecoration(labelText: 'Nama ladang', border: OutlineInputBorder()),
           ),
           const SizedBox(height: 20),
-          barometer.when(
-            data: (available) => _TierBanner(available: available),
-            loading: () => const LinearProgressIndicator(),
-            error: (error, stack) => const _TierBanner(available: false),
-          ),
+          // The registration banner is the first place a farmer learns which
+          // path they are on, so it must give the reason -- not just a bare
+          // "no barometer" that is wrong on a phone that has one.
+          ref.watch(barometerStatusProvider).when(
+                data: (st) => TierBanner(
+                  available: st == BarometerStatus.available,
+                  status: st,
+                ),
+                loading: () => const LinearProgressIndicator(),
+                error: (error, stack) => const TierBanner(
+                  available: false,
+                  status: BarometerStatus.notDetected,
+                ),
+              ),
           if (_error != null) ...[
             const SizedBox(height: 16),
             Container(
@@ -242,30 +251,3 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
   }
 }
 
-class _TierBanner extends StatelessWidget {
-  final bool available;
-  const _TierBanner({required this.available});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(children: [
-        Icon(available ? Icons.speed : Icons.phone_android, color: Colors.blue.shade700),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            available
-                ? 'Telefon anda ada barometer — persediaan akan lebih pantas.'
-                : 'Persediaan akan guna soalan arah air. Semua fungsi tetap berjalan.',
-            style: const TextStyle(fontSize: 14),
-          ),
-        ),
-      ]),
-    );
-  }
-}
