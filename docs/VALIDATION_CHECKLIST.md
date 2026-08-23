@@ -22,7 +22,7 @@
 | **10** | SRTM DEM sanity | Nathan | ✅ PASS | 10.0m elevation for Kuching — plausible |
 | **11** | scrcpy mirroring stable | Nathan | ⏳ BLOCKED | scrcpy v4.1 installed; phone needed to test |
 | **12** | ~25 Iban templates + audio clips | Abraham | ⏳ BLOCKED | BM-only prompts (needs native Iban speaker) |
-| **13** | GCP deploy pipeline proven in sandbox | Nathan | ⏳ PENDING | `gcloud` CLI installed; pipeline test pending 17:00 gate |
+| **13** | GCP deploy pipeline proven in sandbox | Nathan | ✅ ACCOUNT READY | Project `sfws-aicc-workspace-1` (personal account, not the org-restricted team project) billing-active, region asia-southeast1, all required APIs enabled, Firebase attached. Vertex AI chosen over Gemini API key. Actual Cloud Run deploy (`./deploy-cloud.sh`) still pending — no app to deploy until Block C exists. See `docs/BUILD_LOG.md` § Cloud Gate. |
 | **14** | `capture_target` vs predicted body part mismatch fires correctly | Nathan | ⏳ PENDING | Six-class split gives no safety benefit — flag as limitation (test with model/photos) |
 
 ---

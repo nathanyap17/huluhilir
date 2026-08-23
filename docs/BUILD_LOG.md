@@ -93,3 +93,42 @@
 - `pytest.ini` sets `asyncio_mode = auto` so async fixtures/tests (added for `get_treatment`, see `tests/test_get_treatment.py`) run without per-test decorators — keep this in mind if async tests are added to other files and don't seem to run.
 
 ---
+
+## [Cloud Gate] Cloud account setup — project, billing, APIs, Firebase, Vertex AI decision
+
+**Not a code commit** — this entry covers GCP/Firebase account configuration done ahead of the 17:00 gate (`WORKSPACE_SETUP.md` explicitly treats this as "configuration, not code," permitted regardless of build-window timing). Recorded here in detail because it took three project attempts and two distinct 403 errors to get working — if cloud deploy breaks later, read this before re-diagnosing from scratch.
+
+**End state:**
+- GCP project: **`sfws-aicc-workspace-1`**, owned by `a personal Google account`
+- Region: `asia-southeast1`
+- Billing: active (confirmed by successfully enabling `aiplatform.googleapis.com`, which requires it)
+- APIs enabled: `run`, `artifactregistry`, `aiplatform` (Vertex AI), `sqladmin`, `cloudbuild`, `firebase`
+- Firebase: attached to the project, default Hosting site auto-provisioned (`hostingSite: sfws-aicc-workspace-1`)
+- LLM auth decision: **Vertex AI via the Cloud Run service's own service account** (`LITELLM_MODEL=vertex_ai/gemini-2.0-flash`), not a raw `GEMINI_API_KEY` — no key to manage, no key to leak, auth is automatic via Application Default Credentials on Cloud Run's metadata server.
+
+**Three projects were tried before this one worked — in order:**
+
+1. **`model-block-503304-g2`** (account `a second personal account`) — pre-existing from earlier prep, never actually used; superseded once the team decided on a dedicated project name.
+2. **`aicc-workspace-sfws-1`** (account `a university student account`, a UNIMAS student email) — **abandoned.** This account had `roles/owner` on the project (confirmed via `gcloud projects get-iam-policy`), yet `gcloud billing accounts list` / enabling `cloudbilling.googleapis.com` failed with `PERMISSION_DENIED`. Root cause: `gcloud projects describe --format="yaml(parent)"` showed `parent: {type: organization, id: '<org-id redacted>'}` — the project sits inside a UNIMAS-managed Google Cloud Organization, which enforces an org policy blocking billing/service enablement regardless of project-level IAM role. **This cannot be fixed by the project owner** — it needs a UNIMAS Workspace/Cloud org admin to lift, which is out of reach on a competition timeline. **Lesson: if a `gcloud services enable` or billing command 403s despite the caller being Owner, check `gcloud projects describe --format="yaml(parent)"` first — an organization parent is the tell.**
+3. **`sfws-aicc-workspace-1`** (account `a personal Google account`) — **this is the one that worked.** `gcloud projects describe` on this one shows no `parent:` field at all (a bare personal-account project), so no org policy applies. `a personal Google account` has `roles/owner`.
+
+**Bugs hit and fixed on the working project:**
+
+1. **Stale ADC quota project caused `billing`-family commands to reference the wrong (blocked) project number even after `gcloud config set project` was updated correctly.** `gcloud config list` showed the right project, but `gcloud billing accounts list` kept failing against project number `681255809395` (the *old*, org-blocked `aicc-workspace-sfws-1`'s number) instead of the new project. `gcloud auth application-default set-quota-project <new-project>` itself failed too (`the account in ADC does not have serviceusage.services.use on this project` — the cached ADC credential belonged to yet another identity). **Workaround that actually mattered: plain `gcloud services enable <api> --project=<id>` and direct REST calls with an explicit `-H "x-goog-user-project: <project-id>"` header both bypass this — only the `gcloud billing` CLI subcommand group and bare `gcloud auth print-access-token` REST calls are affected.** If a `gcloud billing ...` command misbehaves like this again, don't chase ADC — use `services enable`/REST-with-header instead, or just verify billing indirectly by enabling a billing-gated API (as done here with `aiplatform.googleapis.com`).
+2. **`firebase projects:addfirebase sfws-aicc-workspace-1` (note: typo-prone — this is the *other*, abandoned project's name; the actual command target was always `sfws-aicc-workspace-1`) failed with a generic `403 PERMISSION_DENIED`, "The caller does not have permission,"** even with Owner IAM and reproduced identically from both a local terminal and Google Cloud Shell (ruling out any local-environment cause). Two layered causes, fixed in order:
+   - `firebase.googleapis.com` (Firebase Management API) was not enabled on the project at all — `gcloud services list --enabled --filter="name:firebase.googleapis.com"` returned 0 items. Fixed with `gcloud services enable firebase.googleapis.com --project=sfws-aicc-workspace-1`.
+   - Even after that, `addFirebase` still 403'd. Root cause: **the Google account had never used the Firebase console before**, and Firebase gates first-time `addFirebase` calls behind having visited console.firebase.google.com and passed its onboarding at least once — the API alone can't complete this, no matter how the CLI is invoked (local or Cloud Shell, same result). Fixed by the user manually visiting `console.firebase.google.com` signed in as `a personal Google account` and adding the project there. **Lesson: a `403 PERMISSION_DENIED` on `addFirebase` with an Owner-role account and the API enabled is very likely this specific first-time-use gate — send the human to the console UI rather than continuing to retry the CLI.**
+   - Verified the fix by querying `GET https://firebase.googleapis.com/v1beta1/projects/sfws-aicc-workspace-1` directly with `curl` (with the `x-goog-user-project` header per bug #1 above) rather than via the `firebase-tools` CLI — `npx firebase-tools` invocations are blocked by this environment's permission classifier (flagged as executing a downloaded package), so any future verification of Firebase/npm-CLI-only state needs this direct-REST-call approach instead.
+
+**Environment constraints worth remembering:**
+- This session's `Bash` tool cannot complete interactive OAuth (`gcloud auth login`, `firebase login`, `gcloud auth application-default login`) — those must be run by the user directly (terminal, IDE, or Cloud Shell). Read-only checks (`gcloud auth list`, `gcloud config list`, `gcloud projects describe`) and non-interactive mutations (`gcloud services enable`, `gcloud projects create`) work fine once the user has authenticated.
+- `gcloud projects add-iam-policy-binding` (granting another account access to the project) was blocked by the permission classifier here — account-permission changes need the user's explicit go-ahead each time, not just a general "proceed with cloud setup."
+- `npx firebase-tools <anything>` is blocked by the permission classifier (package execution) — Firebase CLI actions must be run by the user; read-only Firebase state can be checked via direct REST calls instead (see bug #2 above).
+
+**What's NOT done yet:**
+- No actual `gcloud run deploy` has been run — there is no app to deploy until Block C (agent layer) exists. `deploy-cloud.sh` (repo root) is written and ready.
+- The Cloud Run runtime service account (`the Cloud Run runtime service account`, `roles/editor`) has not been explicitly granted `roles/aiplatform.user` — Editor should already cover Vertex AI calls, but this is unverified until Block C makes a real `litellm.completion(model="vertex_ai/...")` call. If that call fails with a permissions error, check this first.
+- Cloud Run's filesystem is ephemeral outside `/tmp`; `deploy-cloud.sh` points `DATABASE_URL` at `/tmp/huluhilir.db`, which means **the seeded demo data does not exist on a fresh Cloud Run instance** — nothing currently runs `seed.py` on cloud startup. This needs an entrypoint change before the cloud path is actually demoable, not just deployable.
+- `backend/app/config.py` gained `vertex_project` / `vertex_location` settings (env vars `VERTEX_PROJECT` / `VERTEX_LOCATION`) — Block C's agent code must actually pass these to `litellm.completion()` when the model string starts with `vertex_ai/`; nothing consumes them yet.
+
+---
