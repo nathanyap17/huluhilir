@@ -141,7 +141,6 @@ class _TerrainCanvasState extends State<TerrainCanvas> {
                 top: 12,
                 right: 12,
                 child: _ProfileOverlay(
-                  onClose: () => setState(() => _openProfileBlockId = null),
                   child: widget.profileBuilder!(
                     _openProfileBlockId!,
                     () => setState(() => _openProfileBlockId = null),
@@ -286,38 +285,20 @@ class _DashedLinePainter extends CustomPainter {
 /// history content the caller supplies via profileBuilder.
 class _ProfileOverlay extends StatelessWidget {
   final Widget child;
-  final VoidCallback onClose;
-  const _ProfileOverlay({required this.child, required this.onClose});
+  const _ProfileOverlay({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      constraints: const BoxConstraints(maxHeight: 420),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: softShadow(tint: const Color(0x33000000)),
-      ),
-      child: Stack(children: [
-        Padding(padding: const EdgeInsets.only(top: 8), child: child),
-        Positioned(
-          top: 4,
-          right: 4,
-          child: IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.85),
-              minimumSize: const Size(28, 28),
-            ),
-            onPressed: onClose,
-          ),
-        ),
-      ]),
+    // Positioning and sizing ONLY. This used to add its own white card and a
+    // second, smaller close button stacked over the one BlockProfileCard
+    // already draws -- two X's, with the wrapper's on top, so taps landed on
+    // whichever happened to win hit-testing. The card owns its own chrome.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 320, maxHeight: 460),
+      child: child,
     );
   }
 }
-
 class _FlowPainter extends CustomPainter {
   final Map<String, Offset> positions;
   final List<FlowEdgeModel> edges;

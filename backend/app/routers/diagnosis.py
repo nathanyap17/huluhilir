@@ -114,10 +114,20 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
             result = await diagnose_leaf_gemini(
                 observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
             )
-        except Exception:
+        except Exception as exc:
             # A vision call needs the network and can fail; the trained model
             # is local and always available, so it is the fallback rather than
             # the request erroring out on a farmer mid-cycle.
+            #
+            # The reason is printed rather than logged: uvicorn's logging
+            # config on Cloud Run does not propagate module loggers to stdout,
+            # which made an earlier failure invisible and cost hours of
+            # guessing. print() reaches Cloud Logging reliably.
+            print(
+                f"[classifier] gemini backend failed, falling back to CNN: "
+                f"{type(exc).__name__}: {str(exc)[:400]}",
+                flush=True,
+            )
             result = diagnose_leaf(
                 observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
             )

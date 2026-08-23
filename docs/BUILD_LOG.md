@@ -694,3 +694,35 @@ The defensible framing, and the stronger one, is the sequence as it actually hap
 If a number is wanted for whichever backend ships, it has to be measured on the same held-out set. That is a short evaluation script, not a claim.
 
 ---
+
+## [Classifier fixed] The Gemini backend works — and the availability probe I trusted was wrong
+
+`CLASSIFIER_BACKEND=gemini` is now live and genuinely deciding: a flat green field returns `unrelated` at **0.95 confidence**, decided by `gemini-2.5-flash`. The CNN calls the same image `defoliation_wilt` at 0.65. That is the reported bug — green foliage graded as *layu* — and the vision backend does not reproduce it.
+
+### The actual bug was never the prompt
+
+Every previous failure traced to one thing: `diagnose_gemini.py` calls `litellm.acompletion` **directly**, and inherited none of the Vertex setup the ADK path performs. `get_adk_model()` writes `VERTEXAI_PROJECT`/`VERTEXAI_LOCATION` into `os.environ` itself, so the agent worked while the classifier failed instantly. Passing `vertex_project`/`vertex_location` explicitly fixed it.
+
+Three earlier fixes were real but were each masking the next one: `model_version` overflowing `String(20)`; `max_tokens=160` being consumed by Gemini 2.5's reasoning tokens leaving empty content; and a silent fallback to `unrelated` that made total parse failure look like correct behaviour on unclear photos.
+
+### `gemini-3.7-flash` is not usable in this project — and the probe said otherwise
+
+A GET on `publishers/google/models/gemini-3.7-flash` returns **200**. An actual prediction against it returns **404**: *"not found or your project does not have access to it."*
+
+**That metadata endpoint tests whether the model NAME is known, not whether this project can call it.** The same probe was used earlier to pick `gemini-2.5-flash` over the 2.0 names — it happened to give the right answer there, which is precisely why it was trusted here. Verify a model with a real inference call, never with the metadata GET.
+
+`vision_model` is therefore a separate setting from `litellm_model`, defaulting to `vertex_ai/gemini-2.5-flash`, so changing the agent's chat model cannot silently re-point the classifier.
+
+### Class heuristics rewritten
+
+The prompt now decides in explicit order — assessable plant part? which part fills the frame? then severity — with the confusion the farmer actually hit called out directly: *"This is the DEFAULT for any leaf that is predominantly green. Do not escalate because of lighting, shadow, or camera white balance"*, and *"Requires visible WILTING or LEAF LOSS. Green foliage with normal turgor is never this class."* Also guards `collar_lesion` against dark wet soil and shadow, which is the failure mode most likely to matter.
+
+### Debugging visibility
+
+Uvicorn on Cloud Run does not propagate module-level loggers to stdout, which made every earlier failure invisible and cost hours. The fallback path now uses `print(..., flush=True)`, which reaches Cloud Logging reliably, and the first line it printed named the 404 immediately.
+
+### Also fixed: the close button that did not work
+
+`terrain_canvas.dart`'s `_ProfileOverlay` drew its own white card **and its own X**, stacked on top of the card's own close button — two X's, the wrapper's on top, so taps landed on whichever won hit-testing. That is the "X doesn't close the block window" report. The wrapper is now positioning and sizing only; `BlockProfileCard` owns its chrome and its single 44px close target. The 3D paths were corrected earlier in the same way.
+
+---

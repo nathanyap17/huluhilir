@@ -38,26 +38,79 @@ from app.schemas.enums import CaptureTarget, DiseaseClass
 # response is validated against this rather than trusted.
 CLASSES = [c.value for c in DiseaseClass if c.value != "unknown"]
 
-_PROMPT = """You are grading a single photograph from a Sarawak black pepper farm for
-Phytophthora foot rot screening.
+_PROMPT = """You are grading ONE photograph from a Sarawak black pepper (Piper nigrum)
+farm, for Phytophthora foot rot screening.
 
-Reply with ONLY a JSON object, no prose, no code fence:
-{"class": "<one of the labels below>", "confidence": <0.0-1.0>, "reason": "<max 12 words>"}
+Return ONLY this JSON object. No prose, no markdown fence:
+{"class": "<exact label>", "confidence": <0.0-1.0>, "reason": "<max 12 words>"}
 
-Labels, and what each means:
-- healthy_leaf: a pepper leaf, uniformly green, margins intact.
-- healthy_collar: the stem base / collar of a vine, no dark lesion.
-- foliar_yellowing: leaf showing chlorosis — yellowing between veins or at margins.
-- collar_lesion: dark, water-soaked lesion at the stem base. The earliest sign of foot rot.
-- defoliation_wilt: wilted or drooping foliage, bare nodes, advanced decline.
-- unrelated: anything that is not an assessable pepper plant part — soil, sky, a hand,
-  a blurred frame, farm clutter, a flat colour field, or any image you cannot actually grade.
+## Decide in this order
 
-Rules:
-- If the photograph is not clearly an assessable pepper plant part, answer "unrelated".
-  Answering "unrelated" is CORRECT and useful; do not guess a plant class to be helpful.
-- confidence is your own certainty. Be honest and use low values when the image is poor.
-- Never mention treatments, chemicals, doses or timing. You classify only."""
+STEP 1 — Is this an assessable pepper plant part?
+If the frame is soil, sky, a hand, a tool, a building, a flat colour field, a
+screenshot, an animal, a different crop, or too blurred/dark to judge, the
+answer is "unrelated". Stop there. Answering "unrelated" is a CORRECT and
+useful outcome, not a failure -- never reach for a plant class to seem helpful.
+
+STEP 2 — Which part of the plant fills most of the frame?
+- Mostly LEAVES (broad, glossy, heart-shaped, prominent parallel veins)
+  -> choose between healthy_leaf and foliar_yellowing.
+- Mostly the STEM BASE / COLLAR (thick woody stem meeting soil, often against
+  a support post) -> choose between healthy_collar and collar_lesion.
+- A whole vine or branch where the STORY is drooping/dying foliage
+  -> defoliation_wilt.
+
+STEP 3 — Within that part, grade severity.
+
+## The six labels
+
+healthy_leaf
+  A pepper leaf that is GREEN. Any ordinary green counts: deep green, mid
+  green, yellow-green new growth, olive, or green under warm/dim light.
+  Minor blemishes, dust, insect nibbles, a torn edge, water droplets and
+  shadows are all still healthy_leaf.
+  >> This is the DEFAULT for any leaf that is predominantly green. Do not
+  >> escalate to a disease class because of lighting, shadow, camera white
+  >> balance, or a couple of small spots.
+
+foliar_yellowing
+  Genuine chlorosis: leaf tissue that has actually LOST green pigment and
+  turned yellow, pale, or bleached — typically between the veins or along the
+  margins, while the veins themselves stay greener. The yellowing must be a
+  clear feature of the leaf itself, not a warm-toned photograph of a green
+  leaf, and not simply a young pale-green shoot.
+  >> If you are hesitating between healthy_leaf and foliar_yellowing, and the
+  >> leaf still reads as basically green, answer healthy_leaf.
+
+healthy_collar
+  The stem base / collar of a vine, intact: uniform bark, no dark sunken
+  patch, no oozing, no girdling. Surrounding wet soil or mud is fine.
+
+collar_lesion
+  A dark brown/black, water-soaked or sunken lesion ON the stem base itself,
+  often spreading around it. This is the earliest treatable sign of foot rot
+  and the single most important class to get right.
+  >> The lesion must be on the PLANT TISSUE. Dark wet SOIL, mud splash, shadow
+  >> at the stem base, or a dark support post is NOT a lesion.
+
+defoliation_wilt
+  Advanced decline of a whole vine or branch: leaves limp, drooping, curled,
+  browning or already shed, bare nodes and exposed stems. The impression is a
+  plant that is dying or dead.
+  >> Requires visible WILTING or LEAF LOSS. A healthy green vine photographed
+  >> from a distance is NOT defoliation_wilt. Green foliage with normal turgor
+  >> is never this class, however many leaves are in frame.
+
+unrelated
+  Not an assessable pepper plant part (see STEP 1).
+
+## Confidence
+Your honest certainty. Use 0.85+ only when the class is unmistakable, 0.5-0.7
+when plausible but not certain, below 0.4 when you are largely guessing. A
+low confidence is more useful to a farmer than a confident wrong answer.
+
+## Never
+Never name a treatment, chemical, dose, or timing. You classify only."""
 
 
 def _media_path(image_uri: str) -> Path:
@@ -80,11 +133,27 @@ async def diagnose_leaf_gemini(
     import litellm
 
     start = time.perf_counter()
+    # A dedicated vision model, separate from the agent's chat model: the two
+    # are chosen for different jobs and there is no reason a change to one
+    # should silently re-point the other.
+    model = settings.vision_model or settings.litellm_model
     path = _media_path(image_uri)
     encoded = base64.b64encode(path.read_bytes()).decode()
 
+    # Vertex project/location are passed EXPLICITLY rather than relying on
+    # ambient env. The ADK path works because get_adk_model() sets
+    # VERTEXAI_PROJECT/VERTEXAI_LOCATION into os.environ itself; this module
+    # calls litellm directly and inherits no such setup, which is the most
+    # likely reason the call was failing immediately rather than over the
+    # network.
+    vertex_kwargs = {}
+    if model.startswith("vertex_ai/"):
+        if settings.vertexai_project:
+            vertex_kwargs["vertex_project"] = settings.vertexai_project
+        vertex_kwargs["vertex_location"] = settings.vertexai_location
+
     response = await litellm.acompletion(
-        model=settings.litellm_model,
+        model=model,
         messages=[{
             "role": "user",
             "content": [
@@ -101,6 +170,7 @@ async def diagnose_leaf_gemini(
         # which looked like a working Gemini backend returning "unrelated".
         # The reply itself is ~40 tokens; the headroom is for the thinking.
         max_tokens=2048,
+        **vertex_kwargs,
     )
     message = response.choices[0].message
     raw = (message.content or "").strip()
@@ -150,7 +220,7 @@ async def diagnose_leaf_gemini(
         # ("vertex_ai/gemini-2.5-flash") overflows it, and Postgres rejects
         # the row outright where SQLite silently truncated -- so keep just the
         # model name and clamp. The full id is already recorded per agent run.
-        model_version=settings.litellm_model.rsplit("/", 1)[-1][:20],
+        model_version=model.rsplit("/", 1)[-1][:20],
         inference_ms=inference_ms,
         mismatch_flag=_mismatch(capture_target, predicted),
     )

@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     # table. Whichever is deployed, quote the accuracy measured for THAT
     # backend; the CNN's 0.934 macro F1 is a fact about the CNN alone.
     classifier_backend: str = "onnx"
+    # Vision model for the gemini classifier backend. Kept separate from
+    # litellm_model (the agent's chat model) so changing one cannot silently
+    # re-point the other. Verified resolvable in this project by a direct GET
+    # against publishers/google/models/<id> -- do that before changing it.
+    # gemini-3.7-flash is NOT usable here: the publisher-model metadata
+    # endpoint returns 200 for it, but an actual prediction 404s with "not
+    # found or your project does not have access to it". A 200 from that GET
+    # means the model NAME is known, not that this project can call it --
+    # verify with a real inference call before changing this.
+    vision_model: str = "vertex_ai/gemini-2.5-flash"
 
     cnn_model_path: str = "../classifier/best-model/huluhilir_l1.onnx"
     cnn_labels_path: str = "../classifier/best-model/labels.txt"
