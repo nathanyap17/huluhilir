@@ -48,6 +48,19 @@ async def get_user(user_id: str, session: AsyncSession = Depends(get_session)) -
     return UserOut.model_validate(user)
 
 
+@router.get("/farms", response_model=list[FarmOut])
+async def list_farms(session: AsyncSession = Depends(get_session)) -> list[FarmOut]:
+    """Farm IDs are ULIDs generated at insert time, including the seeded demo
+    farm -- so on CLOUD, where the DB is reseeded on every new revision, the
+    demo farm's ID changes and nothing can reference it by a hardcoded
+    constant. This lets a client (or a judge with a browser) discover the
+    current demo farm instead. Returns no ownership or boundary data
+    (huluhilir-rules §4); a farm row is only a name and a centroid point.
+    """
+    farms = (await session.execute(select(Farm).order_by(Farm.name))).scalars().all()
+    return [FarmOut.model_validate(f) for f in farms]
+
+
 @router.get("/farms/{farm_id}", response_model=FarmOut)
 async def get_farm(farm_id: str, session: AsyncSession = Depends(get_session)) -> FarmOut:
     """Lets the app rehydrate a persisted session against server truth on

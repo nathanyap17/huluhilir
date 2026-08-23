@@ -5,6 +5,10 @@ pydantic>=2
 pydantic-settings
 sqlalchemy>=2
 aiosqlite
+# CLOUD only: DATABASE_URL switches to postgresql+asyncpg on Cloud Run
+# (Cloud Run's filesystem is ephemeral -- a SQLite file there is wiped on
+# every new revision). No code branches on this; see app/db.py.
+asyncpg
 onnxruntime
 pillow
 numpy

@@ -24,3 +24,6 @@ flutter_app/.flutter-plugins-dependencies
 
 # Uploaded photos / voice labels
 backend/media/
+
+# Built APKs -- distributed as release artifacts, not committed (50MB+ each)
+*.apk
