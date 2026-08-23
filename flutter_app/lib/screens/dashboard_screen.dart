@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models.dart';
 import '../providers.dart';
-import '../terrain_canvas.dart';
+import '../terrain_3d_view.dart';
+import '../terrain_canvas.dart' show TerrainCanvas; // stateColour/stateLabelMs, and a safe 2D fallback
 import '../theme.dart';
 import 'diagnosis_screen.dart';
 
@@ -47,6 +48,13 @@ class DashboardScreen extends ConsumerWidget {
               data: (data) => RefreshIndicator(
                 onRefresh: () async => ref.invalidate(dashboardProvider(farm.farmId)),
                 child: ListView(
+                  // Disabled while a pointer is down over the 3D terrain, so
+                  // OrbitControls' drag-to-rotate and tap-to-select work
+                  // instead of the page scrolling out from under the touch.
+                  // See terrainInteractingProvider's doc comment.
+                  physics: ref.watch(terrainInteractingProvider)
+                      ? const NeverScrollableScrollPhysics()
+                      : const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(24),
                   children: [
                     cycle.maybeWhen(
@@ -350,7 +358,7 @@ class _TerrainCard extends StatelessWidget {
             style: AppText.sans(size: 11, color: AppColors.oliveLight)
                 .copyWith(fontStyle: FontStyle.italic)),
         const SizedBox(height: 20),
-        TerrainCanvas(
+        Terrain3DView(
           nodes: data.terrainNodes,
           edges: data.terrainEdges,
           labels: labels,

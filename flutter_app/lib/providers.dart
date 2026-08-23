@@ -126,6 +126,20 @@ final pendingOutboxCountProvider = FutureProvider<int>((ref) async {
   return ref.watch(outboxProvider).pendingCount();
 });
 
+/// Toggled by Terrain3DView while a pointer is down over the WebView. The
+/// dashboard's outer ListView watches this to disable its own scroll physics
+/// during terrain interaction.
+///
+/// Why this exists: relying on webview_flutter's gestureRecognizers
+/// (EagerGestureRecognizer) to win the gesture arena against the ancestor
+/// ListView was NOT reliable on-device -- confirmed by instrumenting the
+/// WebView's pointerdown/pointerup handlers, which showed the WebView's
+/// internal viewport still shifting mid-touch (a huge, spurious pointer
+/// "distance" between down and up) even with that recognizer set. Directly
+/// controlling ScrollPhysics from Flutter state sidesteps the ambiguous
+/// PlatformView/gesture-arena interaction entirely. See docs/BUILD_LOG.md.
+final terrainInteractingProvider = StateProvider<bool>((ref) => false);
+
 final currentCycleProvider =
     FutureProvider.family<DiagnosisCycleModel?, String>((ref, farmId) async {
   return ref.watch(apiClientProvider).currentCycle(farmId);
