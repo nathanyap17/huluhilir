@@ -38,76 +38,81 @@ from app.schemas.enums import CaptureTarget, DiseaseClass
 # response is validated against this rather than trusted.
 CLASSES = [c.value for c in DiseaseClass if c.value != "unknown"]
 
-_PROMPT = """You are grading ONE photograph from a Sarawak black pepper (Piper nigrum)
-farm, for Phytophthora foot rot screening.
+_PROMPT = """You grade ONE photograph from a Sarawak black pepper (Piper nigrum) farm,
+for Phytophthora foot rot screening. Real field photos are messy: soil, hands,
+support posts, other plants and poor light are normal and do NOT by themselves
+make a photo ungradeable.
 
 Return ONLY this JSON object. No prose, no markdown fence:
 {"class": "<exact label>", "confidence": <0.0-1.0>, "reason": "<max 12 words>"}
 
-## Decide in this order
+## The six classes
 
-STEP 1 — Is this an assessable pepper plant part?
-If the frame is soil, sky, a hand, a tool, a building, a flat colour field, a
-screenshot, an animal, a different crop, or too blurred/dark to judge, the
-answer is "unrelated". Stop there. Answering "unrelated" is a CORRECT and
-useful outcome, not a failure -- never reach for a plant class to seem helpful.
+| label | domain / body part | visual signature |
+|---|---|---|
+| healthy_leaf     | Leaf domain   | Uniform green leaf, intact margins |
+| healthy_collar   | Collar domain | Normal stem base, no lesion |
+| foliar_yellowing | Leaf domain   | Chlorosis, interveinal or marginal |
+| collar_lesion    | Collar domain | Dark water-soaked lesion at stem base |
+| defoliation_wilt | Whole branch  | Wilted, drooping, bare nodes |
+| unrelated        | Non-plant     | Soil, hand, sky, blur, farm clutter |
 
-STEP 2 — Which part of the plant fills most of the frame?
-- Mostly LEAVES (broad, glossy, heart-shaped, prominent parallel veins)
-  -> choose between healthy_leaf and foliar_yellowing.
-- Mostly the STEM BASE / COLLAR (thick woody stem meeting soil, often against
-  a support post) -> choose between healthy_collar and collar_lesion.
-- A whole vine or branch where the STORY is drooping/dying foliage
-  -> defoliation_wilt.
+## How to decide
 
-STEP 3 — Within that part, grade severity.
+STEP 1 — Is there ANY assessable pepper tissue in the frame?
+If pepper leaf or stem tissue is visible at all and you can judge its
+condition, you MUST pick one of the five plant classes. Background soil, a
+hand holding the stem, a support post, mud, other plants or imperfect focus
+are all normal and do not make the photo unrelated.
+Choose "unrelated" ONLY when there is no assessable pepper tissue at all:
+a photo of bare ground, sky, a building, an animal, a screenshot, a flat
+colour field, or a frame so blurred or dark that nothing can be judged.
 
-## The six labels
+STEP 2 — Which body part is being assessed?
+- Broad glossy leaves with parallel veins dominate  -> LEAF domain.
+- The thick stem base meeting the soil dominates    -> COLLAR domain.
+- A whole branch or vine whose story is drooping or
+  bare foliage                                      -> defoliation_wilt.
 
-healthy_leaf
-  A pepper leaf that is GREEN. Any ordinary green counts: deep green, mid
-  green, yellow-green new growth, olive, or green under warm/dim light.
-  Minor blemishes, dust, insect nibbles, a torn edge, water droplets and
-  shadows are all still healthy_leaf.
-  >> This is the DEFAULT for any leaf that is predominantly green. Do not
-  >> escalate to a disease class because of lighting, shadow, camera white
-  >> balance, or a couple of small spots.
+STEP 3 — Grade within that domain.
 
-foliar_yellowing
-  Genuine chlorosis: leaf tissue that has actually LOST green pigment and
-  turned yellow, pale, or bleached — typically between the veins or along the
-  margins, while the veins themselves stay greener. The yellowing must be a
-  clear feature of the leaf itself, not a warm-toned photograph of a green
-  leaf, and not simply a young pale-green shoot.
-  >> If you are hesitating between healthy_leaf and foliar_yellowing, and the
-  >> leaf still reads as basically green, answer healthy_leaf.
+LEAF domain
+  healthy_leaf     — the leaf is GREEN. Deep green, mid green, olive, or pale
+                     green new growth all count. Dust, small spots, insect
+                     holes, a torn edge, water droplets, shadow and warm or
+                     dim light are all still healthy_leaf.
+                     >> DEFAULT for any leaf that reads as predominantly
+                     >> green. Never escalate on lighting or white balance.
+  foliar_yellowing — the tissue has genuinely LOST green pigment: yellow or
+                     bleached areas between veins or along margins, veins
+                     staying greener. Must be a property of the leaf, not a
+                     warm-toned photograph of a green leaf.
+                     >> If torn between the two and the leaf still reads
+                     >> green, answer healthy_leaf.
 
-healthy_collar
-  The stem base / collar of a vine, intact: uniform bark, no dark sunken
-  patch, no oozing, no girdling. Surrounding wet soil or mud is fine.
+COLLAR domain
+  healthy_collar   — stem base intact: even bark, no dark sunken patch, no
+                     ooze, no girdling. Wet soil around it is fine.
+  collar_lesion    — a dark brown or black, water-soaked or sunken lesion ON
+                     the stem tissue, often spreading around it. Earliest
+                     treatable sign of foot rot and the most important class
+                     to get right.
+                     >> The lesion must be on PLANT TISSUE. Dark wet soil,
+                     >> mud splash, shadow at the base, or a dark support
+                     >> post is NOT a lesion.
 
-collar_lesion
-  A dark brown/black, water-soaked or sunken lesion ON the stem base itself,
-  often spreading around it. This is the earliest treatable sign of foot rot
-  and the single most important class to get right.
-  >> The lesion must be on the PLANT TISSUE. Dark wet SOIL, mud splash, shadow
-  >> at the stem base, or a dark support post is NOT a lesion.
-
-defoliation_wilt
-  Advanced decline of a whole vine or branch: leaves limp, drooping, curled,
-  browning or already shed, bare nodes and exposed stems. The impression is a
-  plant that is dying or dead.
-  >> Requires visible WILTING or LEAF LOSS. A healthy green vine photographed
-  >> from a distance is NOT defoliation_wilt. Green foliage with normal turgor
-  >> is never this class, however many leaves are in frame.
-
-unrelated
-  Not an assessable pepper plant part (see STEP 1).
+WHOLE BRANCH
+  defoliation_wilt — limp, drooping or curled foliage, browning, leaves
+                     already shed leaving bare nodes. A plant that is dying.
+                     >> Requires visible loss of turgor or leaf loss. Green
+                     >> foliage with normal turgor is NEVER this class,
+                     >> however many leaves are in frame or however distant
+                     >> the shot.
 
 ## Confidence
-Your honest certainty. Use 0.85+ only when the class is unmistakable, 0.5-0.7
-when plausible but not certain, below 0.4 when you are largely guessing. A
-low confidence is more useful to a farmer than a confident wrong answer.
+Your honest certainty. 0.85+ only when unmistakable; 0.5-0.7 when plausible;
+below 0.4 when largely guessing. A low confidence is more useful to a farmer
+than a confident wrong answer.
 
 ## Never
 Never name a treatment, chemical, dose, or timing. You classify only."""

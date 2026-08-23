@@ -298,12 +298,23 @@ class DiagnosisResult {
   final bool countsAsCheck;
   final String? retakePrompt;
 
+  /// Which attempt this was for the block, and how many retakes remain before
+  /// the photo is accepted regardless. Without these the UI cannot tell
+  /// "try again" from "you are stuck", which is exactly how a cycle used to
+  /// stall forever on one block.
+  final int attempt;
+  final int retakesRemaining;
+  final bool acceptedDespiteMismatch;
+
   DiagnosisResult({
     required this.predictedClass,
     required this.confidence,
     required this.belowThreshold,
     required this.countsAsCheck,
     this.retakePrompt,
+    this.attempt = 1,
+    this.retakesRemaining = 2,
+    this.acceptedDespiteMismatch = false,
   });
 
   factory DiagnosisResult.fromJson(Map<String, dynamic> json) {
@@ -314,6 +325,9 @@ class DiagnosisResult {
       belowThreshold: d['below_threshold'] ?? false,
       countsAsCheck: json['counts_as_check'] ?? false,
       retakePrompt: json['retake_prompt'],
+      attempt: json['attempt'] ?? 1,
+      retakesRemaining: json['retakes_remaining'] ?? 2,
+      acceptedDespiteMismatch: json['accepted_despite_mismatch'] ?? false,
     );
   }
 }

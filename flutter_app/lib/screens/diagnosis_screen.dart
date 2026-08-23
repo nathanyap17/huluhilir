@@ -7,7 +7,9 @@ import 'package:image_picker/image_picker.dart';
 
 import '../brand.dart';
 import '../models.dart';
+import '../i18n.dart';
 import '../providers.dart';
+import '../theme.dart';
 
 /// The diagnosis cycle (docs/PROJECT_SPEC.md §6): an EVENT covering all
 /// blocks, not a per-photo action, and resumable across app restarts.
@@ -28,6 +30,10 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
   DiagnosisCycleModel? _cycle;
   List<BlockModel> _blocks = [];
   final Set<String> _done = {};
+
+  /// Blocks whose last photo was rejected. Tracked so the list can offer a
+  /// way forward rather than leaving the farmer to guess why nothing happens.
+  final Set<String> _stuck = {};
   String _captureTarget = 'collar';
   bool _loading = true;
   bool _busy = false;
@@ -58,7 +64,7 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
     }
   }
 
-  Future<void> _capture(BlockModel block) async {
+  Future<void> _capture(BlockModel block, {bool forceAccept = false}) async {
     final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 85);
     if (picked == null) return;
 
@@ -88,16 +94,25 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
         imageHash: hash,
         captureTarget: _captureTarget,
         cycleId: _cycle?.cycleId,
+        forceAccept: forceAccept,
       );
 
       setState(() {
         if (result.countsAsCheck) {
           _done.add(block.blockId);
           _status = '${block.label}: ${_classLabelMs(result.predictedClass)}'
-              '${result.belowThreshold ? " (keyakinan rendah — periksa sendiri)" : ""}';
+              '${result.belowThreshold ? " (keyakinan rendah — periksa sendiri)" : ""}'
+              '${result.acceptedDespiteMismatch ? " · diterima selepas beberapa cubaan" : ""}';
+          _stuck.remove(block.blockId);
         } else {
-          // Deliberately NOT added to _done -- a mismatched photo is not a check.
-          _status = result.retakePrompt ?? 'Sila ambil semula.';
+          // A retake PROMPT, not a dead end. The block is remembered as
+          // needing an override so the list can offer one -- the old code
+          // simply refused the photo, which left a cycle permanently stuck
+          // on any block the classifier kept misreading.
+          _stuck.add(block.blockId);
+          final left = result.retakesRemaining;
+          _status = '${result.retakePrompt ?? "Sila ambil semula."}'
+              '${left > 0 ? " (cubaan ${result.attempt} — $left lagi)" : ""}';
         }
       });
 
@@ -166,15 +181,16 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
-              child: Text('Bahagian yang difoto:', style: TextStyle(fontWeight: FontWeight.w600)),
+              child: Text(tr(ref, 'diag.part'),
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 8),
             SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'collar', label: Text('Pangkal')),
-                ButtonSegment(value: 'leaf', label: Text('Daun')),
+              segments: [
+                ButtonSegment(value: 'collar', label: Text(tr(ref, 'diag.collar'))),
+                ButtonSegment(value: 'leaf', label: Text(tr(ref, 'diag.leaf'))),
               ],
               selected: {_captureTarget},
               onSelectionChanged: (s) => setState(() => _captureTarget = s.first),
@@ -200,17 +216,39 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
             itemBuilder: (_, i) {
               final block = _blocks[i];
               final done = _done.contains(block.blockId);
+              final stuck = _stuck.contains(block.blockId);
               return ListTile(
                 leading: Icon(
-                  done ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: done ? Colors.green : Colors.grey,
+                  done
+                      ? Icons.check_circle
+                      : stuck
+                          ? Icons.error_outline
+                          : Icons.radio_button_unchecked,
+                  color: done
+                      ? Colors.green
+                      : stuck
+                          ? AppColors.terracotta
+                          : Colors.grey,
                 ),
                 title: Text(block.label),
-                subtitle: Text('#${block.elevationRank}'),
-                trailing: FilledButton.tonal(
-                  onPressed: _busy ? null : () => _capture(block),
-                  child: Text(done ? 'Tambah' : 'Ambil'),
-                ),
+                subtitle: Text(stuck
+                    ? '#${block.elevationRank} · ${tr(ref, 'diag.rejected')}'
+                    : '#${block.elevationRank}'),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  // The escape hatch. Offered only once a photo has actually
+                  // been rejected, so it never invites overriding a check
+                  // that was working -- but once offered, the farmer standing
+                  // in front of the vine can always proceed.
+                  if (stuck && !done)
+                    TextButton(
+                      onPressed: _busy ? null : () => _capture(block, forceAccept: true),
+                      child: Text(tr(ref, 'diag.useAnyway')),
+                    ),
+                  FilledButton.tonal(
+                    onPressed: _busy ? null : () => _capture(block),
+                    child: Text(done ? tr(ref, 'diag.add') : tr(ref, 'diag.take')),
+                  ),
+                ]),
               );
             },
           ),

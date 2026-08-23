@@ -35,6 +35,10 @@ class ObservationCreate(ORMModel):
     captured_at: datetime
     gps_lat: Optional[float] = None
     gps_lon: Optional[float] = None
+    # The farmer overriding a retake prompt. They are standing in front of the
+    # vine and the classifier is not -- the same principle as the farmer's
+    # elevation answer beating the barometer (huluhilir-rules section 3).
+    force_accept: bool = False
 
 
 class ObservationOut(ObservationCreate):

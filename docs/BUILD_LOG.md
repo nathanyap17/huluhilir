@@ -786,3 +786,37 @@ The diagrams were first written with `opacity="0"` baked into the SVG. **That is
 Both figures now hide their own elements in JS immediately before animating, and each carries a 4-second `revealAll` backstop. Verified after deploy: `terrace`, `vine`, `sig` and `verdict-node` all resolve to opacity 1 and the wire dash offset to 0. `prefers-reduced-motion` skips the hide entirely and drops the looping droplet.
 
 ---
+
+## [Diagnosis unstuck] The cycle could never finish, and a deploy kept reverting the classifier
+
+### The halt: a retake prompt with no way out
+
+`counts_as_check = result.mismatch_flag is None`. Any `unrelated` verdict meant the photo never counted, `blocks_captured` never incremented, and **the cycle stalled on that block permanently** — no override, no skip, no signal to the farmer that retrying would never work.
+
+Worse, the Gemini prompt I had written made this *more* likely, not less: it told the model *"answering unrelated is CORRECT and useful; do not guess a plant class to be helpful."* Sound advice for a classifier, and directly harmful given a caller that treats `unrelated` as a permanent rejection. The two changes were individually reasonable and jointly broke the core flow.
+
+Three fixes:
+
+1. **A retake budget.** After 2 rejected attempts on a block the next photo is accepted anyway, with the diagnosis carried through as-is. A farmer who has photographed the same stem three times has told us something the classifier has not.
+2. **`force_accept`.** The farmer can override immediately. Same principle as their elevation answer beating the barometer (§3): they are standing in front of the vine and the model is not. It is a request field, not a stored column — what matters afterwards is the diagnosis and its confidence, not which button got past a prompt.
+3. **`attempt` / `retakes_remaining` in the response**, so the UI can distinguish *"try again"* from *"you are stuck"*. Without them the app could only repeat the same prompt forever, which is exactly what it did. The block list now marks a rejected block and offers **Guna juga**, shown only after a rejection so it never invites overriding a check that was working.
+
+### Prompt realigned to the L1 class table
+
+Rewritten against the authoritative six-class table, including the **domain / body part** column that was missing: `defoliation_wilt` is a *whole-branch* observation, so it is now explicitly exempt from the leaf/collar mismatch check — flagging it as wrongly-aimed would have rejected exactly the photos that matter most on a declining vine.
+
+`unrelated` was also far too eager. It now applies only when there is **no assessable pepper tissue at all**; background soil, a hand on the stem, a support post, mud and imperfect focus are stated as normal field conditions rather than grounds for rejection.
+
+### The classifier kept reverting — a deployment bug wearing a model bug's clothes
+
+`CLASSIFIER_BACKEND=gemini` was being set with `gcloud run services update --update-env-vars`, then wiped by the next `deploy-cloud.sh`. **Every `--set-env-vars` flag contributes to one REPLACEMENT set**, so any variable not named in the script is dropped on deploy. The classifier silently fell back to the CNN and looked like a model regression.
+
+Both are now declared in `deploy-cloud.sh`. Verified after deploy by reading the deployed env, then by inference: a 60×60 solid green square returns `unrelated 1.0` from `gemini-2.5-flash`.
+
+### iOS
+
+There was no `ios/` project at all — generated, with `NSMotionUsageDescription` added. That key is not optional: iOS **terminates** the app on first `CMAltimeter` access without it rather than merely denying the read. Camera, microphone, photo-library and location strings added for the same reason.
+
+**This does not make the barometer work in a browser.** Safari on iOS exposes no barometric pressure — no browser does — so an iPhone tested through the web app will always report the sensor unavailable, correctly. Reading it needs a native build, and building for iOS needs a Mac with Xcode.
+
+---

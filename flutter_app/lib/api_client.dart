@@ -157,8 +157,10 @@ class ApiClient {
     required String imageHash,
     required String captureTarget,
     String? cycleId,
+    bool forceAccept = false,
   }) async {
     final r = await _dio.post('/observations', data: {
+      'force_accept': forceAccept,
       'block_id': blockId,
       'user_id': userId,
       'image_uri': imageUri,

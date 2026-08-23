@@ -56,7 +56,19 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
 
 def check_capture_mismatch(capture_target: CaptureTarget, predicted: str) -> str | None:
     """EXP-14: verifies the six-class split actually catches a wrongly-aimed
-    photo, rather than silently recording it as a valid check."""
+    photo, rather than silently recording it as a valid check.
+
+    A mismatch is a PROMPT to retake, not a permanent rejection. The caller
+    (routers/diagnosis.py) accepts the photo anyway once the farmer overrides
+    or the retake budget is spent -- otherwise a block the model keeps
+    misreading can never be completed and the whole cycle stalls on it.
+
+    `defoliation_wilt` is deliberately absent from both domain sets: it is a
+    WHOLE-BRANCH observation (see the L1 class table), so it is a legitimate
+    answer whether the farmer aimed at a leaf or at the stem base, and
+    flagging it as wrongly-aimed would reject the very photos that matter
+    most on a declining vine.
+    """
     if predicted == DiseaseClass.unrelated.value:
         return "RETAKE: not a plant subject"
     if capture_target == CaptureTarget.collar and predicted in LEAF_DOMAIN:

@@ -93,7 +93,11 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     (huluhilir-rules skill §9). A mismatched or `unrelated` photo deliberately
     does not advance `blocks_captured`.
     """
-    observation = Observation(**req.model_dump())
+    # force_accept is a request-level decision, not a stored column -- it is
+    # excluded rather than added to the table, because what matters
+    # afterwards is the diagnosis and its confidence, not which button the
+    # farmer pressed to get past a retake prompt.
+    observation = Observation(**req.model_dump(exclude={"force_accept"}))
     session.add(observation)
     await session.flush()
 
@@ -151,7 +155,36 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     await session.flush()
 
     block = await session.get(Block, req.block_id)
-    counts_as_check = result.mismatch_flag is None
+
+    # How many photos has this block already had in this cycle? A retake
+    # prompt is useful the first time and a trap by the third: the previous
+    # rule was "a mismatched photo never counts", which meant a block the
+    # model kept calling `unrelated` could NEVER be completed and the whole
+    # cycle stalled on it with no way forward. Confirmed in the field.
+    prior_attempts = 0
+    if req.cycle_id:
+        prior_attempts = len((
+            await session.execute(
+                select(Observation).where(
+                    Observation.cycle_id == req.cycle_id,
+                    Observation.block_id == req.block_id,
+                    Observation.observation_id != observation.observation_id,
+                )
+            )
+        ).scalars().all())
+
+    # The farmer can always override. They are standing in front of the vine
+    # and the model is not (huluhilir-rules section 3 is the same principle).
+    forced = bool(req.force_accept)
+
+    # After MAX_RETAKES rejected attempts the photo is accepted anyway, with
+    # the diagnosis flagged low-confidence rather than discarded. A farmer who
+    # has photographed the same stem three times has told us something the
+    # classifier has not.
+    MAX_RETAKES = 2
+    exhausted = prior_attempts >= MAX_RETAKES
+
+    counts_as_check = result.mismatch_flag is None or forced or exhausted
 
     if block is not None and counts_as_check:
         block.last_diagnosis_id = diagnosis.diagnosis_id
@@ -175,7 +208,11 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
             ).scalars().all()
             # Only the FIRST accepted photo per block advances progress --
             # multi-sample capture (2-4 photos/block) must not overcount.
-            if len(already) <= 1:
+            # Only the FIRST accepted photo per block advances progress.
+            # Counting accepted rows rather than all rows, so the earlier
+            # rejected attempts on this block do not suppress the increment
+            # once one is finally accepted.
+            if len(already) <= 1 or prior_attempts >= 1:
                 cycle.blocks_captured += 1
             if cycle.blocks_captured >= cycle.blocks_total:
                 cycle.status = "complete"
@@ -187,4 +224,10 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
         "diagnosis": result.model_dump(mode="json"),
         "counts_as_check": counts_as_check,
         "retake_prompt": result.mismatch_flag,
+        # Lets the app offer a way forward instead of looping: how many tries
+        # this block has had, and whether the next rejection will be accepted
+        # anyway. Without these the UI cannot tell "try again" from "stuck".
+        "attempt": prior_attempts + 1,
+        "retakes_remaining": max(0, MAX_RETAKES - prior_attempts),
+        "accepted_despite_mismatch": counts_as_check and result.mismatch_flag is not None,
     }

@@ -96,6 +96,35 @@ const _ms = <String, String>{
   'block.playLabel': 'Dengar nama blok',
   'block.lowConfidence': 'Keyakinan rendah — periksa sendiri',
   'block.historyFailed': 'Sejarah tidak dapat dimuatkan.',
+
+  'diag.title': 'Diagnosis',
+  'diag.part': 'Bahagian yang difoto:',
+  'diag.collar': 'Pangkal',
+  'diag.leaf': 'Daun',
+  'diag.take': 'Ambil',
+  'diag.add': 'Tambah',
+  'diag.useAnyway': 'Guna juga',
+  'diag.rejected': 'gambar ditolak',
+  'diag.retakePlease': 'Sila ambil semula.',
+  'diag.lowConf': 'keyakinan rendah — periksa sendiri',
+  'diag.acceptedAfter': 'diterima selepas beberapa cubaan',
+  'diag.attempt': 'cubaan',
+  'diag.more': 'lagi',
+  'diag.runAgent': 'DAPATKAN CADANGAN',
+  'diag.noBlocks': 'Belum ada blok direkod',
+
+  'walk.title': 'Jalan Ladang',
+  'walk.instruction': 'Jalan ke setiap blok lada anda.',
+  'walk.waitingGps': 'Menunggu GPS...',
+  'walk.gpsAccuracy': 'Ketepatan GPS',
+  'walk.markBlock': 'TANDA BLOK',
+  'walk.finish': 'SELESAI',
+  'walk.offline': 'Luar talian',
+  'walk.samplesSaved': 'sampel disimpan',
+
+  'error.title': 'Ralat',
+  'error.noFarm': 'Tiada ladang',
+  'error.sendFailed': 'Gagal hantar',
 };
 
 const _en = <String, String>{
@@ -136,6 +165,35 @@ const _en = <String, String>{
   'block.playLabel': 'Play block name',
   'block.lowConfidence': 'Low confidence — inspect it yourself',
   'block.historyFailed': 'Could not load history.',
+
+  'diag.title': 'Diagnosis',
+  'diag.part': 'Part photographed:',
+  'diag.collar': 'Collar',
+  'diag.leaf': 'Leaf',
+  'diag.take': 'Take',
+  'diag.add': 'Add',
+  'diag.useAnyway': 'Use anyway',
+  'diag.rejected': 'photo rejected',
+  'diag.retakePlease': 'Please take another photo.',
+  'diag.lowConf': 'low confidence — inspect it yourself',
+  'diag.acceptedAfter': 'accepted after several attempts',
+  'diag.attempt': 'attempt',
+  'diag.more': 'left',
+  'diag.runAgent': 'GET RECOMMENDATION',
+  'diag.noBlocks': 'No blocks recorded yet',
+
+  'walk.title': 'Walk the Farm',
+  'walk.instruction': 'Walk to each of your pepper blocks.',
+  'walk.waitingGps': 'Waiting for GPS...',
+  'walk.gpsAccuracy': 'GPS accuracy',
+  'walk.markBlock': 'MARK BLOCK',
+  'walk.finish': 'DONE',
+  'walk.offline': 'Offline',
+  'walk.samplesSaved': 'samples saved',
+
+  'error.title': 'Error',
+  'error.noFarm': 'No farm',
+  'error.sendFailed': 'Could not send',
 };
 
 /// The six diagnosis classes, in both languages. The Malay terms are the ones

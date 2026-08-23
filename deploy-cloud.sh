@@ -45,6 +45,15 @@ DB_URL_SECRET="${DB_URL_SECRET:-huluhilir-db-url}"
 # conversion to find gcloud.py.
 MEDIA_BUCKET="${MEDIA_BUCKET:-huluhilir-media}"
 
+# These MUST be listed among the --set-env-vars flags below, not applied
+# afterwards with `gcloud run services update --update-env-vars`. Every
+# --set-env-vars flag contributes to one REPLACEMENT set, so a deploy silently
+# wipes any variable not named here. That is exactly how the classifier
+# reverted from gemini to the CNN on the deploy after it was switched by hand
+# -- it looked like a model regression and was a deployment one.
+CLASSIFIER_BACKEND="${CLASSIFIER_BACKEND:-gemini}"
+VISION_MODEL_NAME="${VISION_MODEL_NAME:-gemini-2.5-flash}"
+
 echo "Deploying $SERVICE_NAME to Cloud Run in $REGION (project: $PROJECT_ID)"
 
 # --source . (repo root, not ./backend): the root Dockerfile bakes the
@@ -62,6 +71,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --set-env-vars "VERTEXAI_PROJECT=$PROJECT_ID" \
   --set-env-vars "VERTEXAI_LOCATION=$VERTEX_LOCATION" \
   --set-env-vars "MEDIA_ROOT=//media" \
+  --set-env-vars "CLASSIFIER_BACKEND=$CLASSIFIER_BACKEND" \
+  --set-env-vars "VISION_MODEL=vertex_ai/$VISION_MODEL_NAME" \
   --add-volume "name=media,type=cloud-storage,bucket=$MEDIA_BUCKET" \
   --add-volume-mount "volume=media,mount-path=//media" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
