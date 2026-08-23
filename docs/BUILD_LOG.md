@@ -899,3 +899,40 @@ Live after deploy:
 So `foliar_yellowing`, `collar_lesion`, `healthy_collar` and `defoliation_wilt` remain **unvalidated** — drawn shapes cannot exercise them, and claiming otherwise from these results would be inventing evidence. Real field photographs are the only way to test them, which is the next step.
 
 ---
+
+## [Strict check] Is L1 effectively identifying six classes?
+
+Asked directly. The honest answer is **not demonstrated** — and the first version of this check was itself flawed, which is worth recording.
+
+### The flawed first pass
+
+Aggregating `predicted_class` across all production diagnoses gave "6/6 classes ever produced" and looked like a pass. It was not: the aggregate **mixed both backends**, so CNN outputs (already shown unreliable) were being counted as evidence for the deployed vision path. `model_version` was not exposed in the block-detail payload, so the split was not even possible. Added it, then re-measured.
+
+### What is actually true
+
+**Plumbing — verified, sound.** `DiseaseClass`, `labels.txt` and the Gemini `CLASSES` list agree exactly and in the same order. State mapping is complete and correct: `collar_lesion`/`defoliation_wilt` → harmed, `foliar_yellowing` → alerted, and `healthy_leaf`/`healthy_collar`/`unrelated` deliberately change nothing. All six carry UI labels in both languages.
+
+**Coverage, split by model:**
+
+| backend | n | distinct classes produced |
+|---|---|---|
+| `gemini-2.5-flash` (live) | 24 | 6/6 |
+| `huluhilir_l1_v1` (CNN fallback) | 51 | 6/6 |
+
+**Coverage is not accuracy.** A classifier assigning labels at random also produces all six. There is no ground truth behind any of those 76 rows — most are synthetic test images I generated — so nothing here says whether the three `collar_lesion` calls were collar lesions.
+
+### Three things the question exposes
+
+1. **The CNN is not the deployed classifier.** `CLASSIFIER_BACKEND=gemini`; the ONNX model runs only when the vision call fails. A question about "the CNN layer" is, in production, a question about Gemini 2.5 Flash.
+2. **For the CNN specifically there is positive evidence AGAINST effectiveness**: solid black → `healthy_leaf` 0.78, solid brown → `healthy_leaf` 0.91, reproducible across every preprocessing variant.
+3. **For the vision backend, effectiveness is simply unmeasured.** Only `healthy_leaf` has been checked against something resembling ground truth, on a drawn image.
+
+### Closing the loop
+
+`backend/scripts/eval_classifier.py` — referenced in a docstring earlier and never actually written, which is its own small dishonesty. Takes one directory per class of labelled photographs and reports per-class precision/recall/F1, macro F1 and a confusion matrix, for either backend.
+
+It prints `collar_lesion` recall separately and says to read it before the macro average: a missed collar lesion is a vine lost, a false alarm is one wasted inspection, and a strong macro number can hide a weak one. Classes with no examples are reported as unmeasured rather than silently scored 0 or skipped.
+
+**Until that is run against real labelled photographs, "effectively identifying six classes" is not a claim this project can make.**
+
+---

@@ -330,6 +330,10 @@ async def block_detail(block_id: str, session: AsyncSession = Depends(get_sessio
             "captured_at": obs.captured_at.isoformat(),
             "predicted_class": diag.predicted_class if diag else None,
             "confidence": diag.confidence if diag else None,
+            # WHICH model decided. Without it an aggregate over diagnoses
+            # silently mixes the CNN and the vision backend, and a count of
+            # "classes ever produced" says nothing about either one.
+            "model_version": diag.model_version if diag else None,
             # Surfaced so the card can show uncertainty rather than assert a
             # class the model was not confident about (huluhilir-rules §9).
             "below_threshold": (diag.confidence < 0.60) if diag else None,
