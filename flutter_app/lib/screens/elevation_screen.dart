@@ -5,6 +5,7 @@ import '../brand.dart';
 import '../models.dart';
 import '../providers.dart';
 import 'dashboard_screen.dart';
+import 'terrain_derived_screen.dart';
 
 /// Step ⑤ of setup: elevation resolution (docs/PROJECT_SPEC.md §5).
 ///
@@ -73,12 +74,31 @@ class _ElevationScreenState extends ConsumerState<ElevationScreen> {
           'answer': _answers[i] ?? 'a_higher',
         });
       }
-      await ref.read(apiClientProvider).resolveElevation(farm.farmId, payload);
+      final result = await ref.read(apiClientProvider).resolveElevation(farm.farmId, payload);
       // Setup just completed server-side; refresh so isSetupComplete is true
       // and a relaunch routes to the dashboard rather than back into the walk.
       await ref.read(sessionProvider.notifier).refreshFarm();
 
       if (!mounted) return;
+
+      // When the barometer separated every block, the farmer answered nothing
+      // and the whole slope was reconstructed from sensor readings alone.
+      // Show that rather than dropping them on the dashboard with no idea it
+      // happened -- it is the most impressive thing the system does.
+      if (result['derived_automatically'] == true) {
+        final blocks = ((result['blocks'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>();
+        if (blocks.isNotEmpty) {
+          Navigator.of(context).pushReplacement(MaterialPageRoute(
+            builder: (_) => TerrainDerivedScreen(
+              blocks: blocks,
+              edgesCreated: (result['edges_created'] as num?)?.toInt() ?? 0,
+            ),
+          ));
+          return;
+        }
+      }
+
       Navigator.of(context)
           .pushReplacement(MaterialPageRoute(builder: (_) => const DashboardScreen()));
     } catch (e) {

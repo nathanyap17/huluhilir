@@ -259,11 +259,38 @@ async def resolve_elevation(
         farm.setup_completed_at = now_kuching()
 
     await session.commit()
+
+    # Enough detail for the app to *show* what was derived rather than
+    # silently jumping to the dashboard. On the OPTIMISED path the farmer was
+    # asked nothing at all, so without this the most impressive thing the
+    # system does -- reconstructing the whole slope from sensor data -- is
+    # completely invisible to the person it was done for.
+    by_rank = sorted(blocks, key=lambda b: b.elevation_rank)
+    derived = []
+    for i, b in enumerate(by_rank):
+        prev = by_rank[i - 1] if i > 0 else None
+        drop = None
+        if prev is not None and b.baro_rel_m is not None and prev.baro_rel_m is not None:
+            drop = round(prev.baro_rel_m - b.baro_rel_m, 1)
+        derived.append({
+            "block_id": b.block_id,
+            "label": b.label,
+            "elevation_rank": b.elevation_rank,
+            "baro_rel_m": b.baro_rel_m,
+            # Metres of fall from the block immediately above it.
+            "drop_from_above_m": drop,
+        })
+
     return {
         "ranks": ranks,
         "edges_created": len(edges),
         "conflicts_logged": len(conflicts),
         "setup_completed": True,
+        # True when the ordering came entirely from the sensor -- no question
+        # was put to the farmer. This is what makes the summary worth showing.
+        "derived_automatically": not farmer_pairs and baro is not None,
+        "questions_answered": len(farmer_pairs),
+        "blocks": derived,
     }
 
 
@@ -310,10 +337,20 @@ async def block_detail(block_id: str, session: AsyncSession = Depends(get_sessio
         for obs, diag in rows
     ]
 
+    # The block's own capture photo is the natural header, but seeded blocks
+    # carry a placeholder path that resolves to nothing -- which is why the
+    # demo farm showed a blank header. Fall back to the most recent real
+    # observation photo, which is both a valid image and a more current view
+    # of the block than the day it was marked.
+    header = block.photo_uri
+    if not header or header.startswith("seed/"):
+        header = next((h["image_uri"] for h in history if h["image_uri"]), None)
+
     return {
         "block_id": block.block_id,
         "label": block.label,
         "photo_uri": block.photo_uri,
+        "header_image_uri": header,
         # An audio sticker, replayed beside the photo. Never transcribed --
         # there is no ASR anywhere in this codebase (huluhilir-rules §1).
         "voice_label_uri": block.voice_label_uri,

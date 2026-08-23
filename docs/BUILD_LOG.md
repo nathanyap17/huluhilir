@@ -620,3 +620,43 @@ I then re-ran all five plausible preprocessing variants (RGB/BGR, ImageNet-norma
 - The pairwise question count is honest but heavy at scale — 10 blocks is 45 comparisons. If that proves unusable in the field, the fix is a smarter sort (merge-insertion needs ~n log n comparisons), not a return to the n−1 chain that never established an order.
 
 ---
+
+## [Autonomy pass] Silent terrain reconstruction, durable media, and two MSYS traps
+
+### The autonomous barometer path already worked — it was just invisible
+
+Verified on the live service: a farm with a barometer and four well-separated blocks asks **zero questions**, and `resolve-elevation` returns the correct hulu→hilir ordering with 4.0 m drops and 6 flow edges, derived entirely from sensor readings plus GPS distances. The pieces were all there — `pairs_needing_farmer_input` returns nothing when the sensor separates every pair, `sort_key` falls through to `baro_rel`, and `build_flow_edges` does k-NN on haversine distance filtered by rank.
+
+What was wrong is that **the farmer never saw it happen**. `elevation_screen` did `if (questions.isEmpty) await _submit()` and jumped straight to the dashboard, so the single most impressive thing the system does — reconstructing an entire slope from readings taken while someone walked — showed up as a spinner.
+
+`/resolve-elevation` now also returns `derived_automatically`, `questions_answered`, and a per-block list with `drop_from_above_m`; `TerrainDerivedScreen` shows it. No confirmation control and no "correct this" button, deliberately: the ordering came from a measurement the farmer was never asked to make, and inviting them to second-guess it here would be the wrong place. §3 still holds — a farmer's answer beats the sensor — but the place to give that answer is the question flow, which is exactly what the MINIMAL path is.
+
+### Media was still ephemeral while the database was not
+
+The block profile showed no background image, and chasing it surfaced something worse: moving the DB to Cloud SQL without moving media left the two **out of step**. Observation rows survived a redeploy; the images they pointed at did not. `header_image_uri` resolved to a real URI that then 404'd — a broken reference that looked like a UI bug and was actually data loss.
+
+Fixed by mounting a GCS bucket (`huluhilir-media`) as a Cloud Run volume at `/media`. No application code changed — `MEDIA_ROOT` points at the mount. Verified properly: uploaded a file, confirmed it appeared as an object in the bucket, forced a revision roll, and re-fetched it successfully (200, same bytes).
+
+Also added a header fallback: seeded blocks carry a `seed/` placeholder path, so the demo farm — the one every judge opens — had no header image. It now falls back to the block's most recent observation photo, which is both valid and a more current view than the day it was marked.
+
+### Two Git-Bash path-mangling traps, and one wrong fix
+
+MSYS rewrites any argument that looks like a Unix path. It bit twice here:
+
+- `--add-volume-mount "volume=media,mount-path=/media"` reached gcloud as `mount-path=C:/Program Files/Git/media` → *"should be a valid unix absolute path"*, naming a value nobody typed.
+- Less obviously, `--set-env-vars "MEDIA_ROOT=/media"` was mangled the same way. The **volume mounted correctly** while the app wrote to a container-local directory literally named `C:/Program Files/Git/media`, so uploads still vanished and the bucket stayed empty. This one is nastier because the deploy succeeds and the config *looks* right until you read the deployed env.
+
+**`MSYS_NO_PATHCONV=1` is not the fix** — it breaks gcloud's own launcher, which relies on that same conversion to locate `gcloud.py` (`can't open file 'C:\c\Users\...\gcloud.py'`). The working escape is a **double slash**: `//media` is left alone by msys and collapses to `/media` at both ends, verified by round-tripping the argument.
+
+### Verified (how)
+
+Autonomous flow driven end-to-end against the live service (0 questions, correct ranks, real drops). Media persistence proven by surviving a deliberate revision roll. RAG, settings, block history, tier banner, map and the absence of `pokok` all confirmed present in the **deployed** bundle by grepping `main.dart.js` over the network, and `/advisor/ask` + `/blocks/{id}/detail` exercised from the hosting origin. 22 backend tests pass; `flutter analyze` at the 4 pre-existing info items.
+
+### Known gaps
+
+- **The L1 model remains the outstanding risk** — unchanged by this pass, and no threshold repairs it. Retraining on real field photographs is the fix.
+- `/advisor/ask` takes ~18 s (a full Vertex round trip with a tool call). Fine for a considered question, too slow to feel conversational.
+- Two stray local dev servers from earlier debugging (ports 8077/8099) were left running across sessions and are now stopped; the only remaining periodic task is the walk-sample flush timer, which is necessary and correctly cancelled in `dispose()`.
+- Test farms (`Durability Probe Farm`, `nCr Probe`, `Auto Terrain Probe`) are visible on `/farms`; delete before the pitch.
+
+---

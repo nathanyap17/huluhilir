@@ -72,10 +72,10 @@ class BlockProfileCard extends ConsumerWidget {
             Container(color: colour),
             detail.maybeWhen(
               data: (d) {
-                final uri = d['photo_uri'] as String?;
-                if (uri == null || uri.isEmpty || uri.startsWith('seed/')) {
-                  return const SizedBox.shrink();
-                }
+                // Server-resolved: the block's capture photo, or its most
+                // recent observation photo when that is a seed placeholder.
+                final uri = d['header_image_uri'] as String?;
+                if (uri == null || uri.isEmpty) return const SizedBox.shrink();
                 return Image.network(
                   api.mediaUrl(uri),
                   fit: BoxFit.cover,
