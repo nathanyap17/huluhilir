@@ -1,0 +1,6 @@
+healthy_leaf
+healthy_collar
+foliar_yellowing
+collar_lesion
+defoliation_wilt
+unrelated
