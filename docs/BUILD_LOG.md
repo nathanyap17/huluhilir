@@ -201,3 +201,48 @@ Live-testing the RootAgent against the actual demo scenario (`docs/PROJECT_SPEC.
 - Cloud Run's Vertex AI IAM permission (Block C's `Cloud Gate` entry, item 2) is still unverified against a real `vertex_ai/gemini-2.0-flash` call — only tested against local Ollama so far.
 
 ---
+
+## [Block D] Flutter app — setup flow, walk loop, dashboard, terrain canvas
+
+**Commits:** `Block D prerequisite: the API surface the Flutter app actually consumes`, `Block D: Flutter app -- setup flow, walk loop, dashboard, terrain canvas`
+
+### The plan gap this block exposed
+
+PLAN.md Block D says *"Generate Dart models from `/openapi.json`"* and its exit is *"full setup → diagnosis → recommendation on a real phone"* — but **no block in PLAN.md ever allocated the CRUD/flow endpoints the app consumes.** Blocks A–C built the tools, the agent, and a health check; there was no way to create a user, capture a block, resolve elevation, upload a photo, or fetch a dashboard. Roughly 900 lines of backend had to land before a single screen could work. If re-planning a build like this, allocate the app-facing API surface explicitly — it is not implied by "FastAPI skeleton" in Block A.
+
+**Files added (backend):** `routers/setup.py`, `routers/media.py`, `routers/diagnosis.py`, `routers/dashboard.py`, `tools/graph.py`, `tests/test_setup_flow.py`
+**Files added (app):** `flutter_app/lib/{config,models,api_client,outbox,providers,terrain_canvas,main}.dart`, `lib/screens/{registration,walk,elevation,dashboard,diagnosis}_screen.dart`, `test/widget_test.dart`, `android/app/src/main/res/xml/network_security_config.xml`
+
+### Key decisions
+
+- **`tools/graph.py` lifted out of `seed.py`.** Elevation ranking and flow-edge derivation existed only inside the seed script; real farms need it at runtime. Ranking uses an ordering-score (count of "is above") rather than a topological sort, because a real farmer's pairwise answers may be **intransitive** (a>b, b>c, c>a is entirely possible) — a strict sort would raise on that, scoring degrades gracefully. Ties break by baro_rel then block_id so `elevation_rank` stays unique per farm and deterministic.
+- **Dart models hand-written, not generated.** openapi-generator/build_runner setup costs more than it saves at this model count; `/openapi.json` remains the source of truth and the backend wins on any disagreement.
+- **Terrain canvas lays out by `elevation_rank`, not geographic position.** It is a water-flow diagram, not a map. Rendering real coordinates would imply we hold land boundaries, which we explicitly never record (huluhilir-rules §4). Rank ordering is the only spatial claim the system actually makes.
+- **`uses-feature barometer required="false"`** — marking it required would exclude exactly the low-cost phones this is built for, and MINIMAL tier loses no functionality per PROJECT_SPEC §4.
+
+### Bugs found and fixed
+
+1. **Session was in-memory only — closing the app lost the farm entirely.** Found by force-stopping the app during emulator testing. This also made PROJECT_SPEC §7's *"on app open mid-cycle, land on the dashboard with a resume prompt"* impossible to honour, since there was no session to resume into. Fixed with `shared_preferences` persisting **only the two IDs**, plus new `GET /users/{id}` and `GET /farms/{id}` endpoints so the farm is re-fetched from the server on launch — `setup_completed_at` is server truth, never a stale local copy. `SessionState.restoring` gates a splash so a returning farmer never sees the registration form flash first. Routing now also handles *registered-but-setup-incomplete* → resume the walk, rather than showing an empty dashboard.
+2. **`permission_handler` broke the Android build** — its own `build.gradle.kts` uses `compilerOptions {}`, which needs a newer Kotlin Gradle plugin than this project has (`Unresolved reference: compilerOptions`). It turned out to be **completely unused**: geolocator, record, and image_picker each handle their own permissions. Removed rather than fighting the toolchain. If a future need for it arises, the Kotlin plugin must be upgraded first.
+3. **Android blocks cleartext HTTP by default (API 28+)** — the LOCAL target is plain HTTP to a laptop, so without a `networkSecurityConfig` the app fails with a generic socket error. Caught before it could burn demo time on stage. **First attempt at the fix was wrong and worth recording:** I scoped it with `<domain>192.168.1.0</domain>`-style entries, but Android's `<domain>` matches *literal hostnames, not CIDR ranges* — that would only ever match the exact address `192.168.1.0`, never the laptop at `192.168.1.57`. Since the booth LAN IP isn't known ahead of time there's no way to enumerate it, so `base-config cleartextTrafficPermitted="true"` is used, with the reasoning documented in the file. Acceptable because the CLOUD build uses HTTPS regardless and the LOCAL build is booth-only.
+4. **`walk_screen`'s `_walkSessionId` was assigned but never used** — flagged by `flutter analyze` as an unused field. It meant **walk samples were never actually being sent to the server**: the walk loop looked like it worked but persisted nothing. Fixed with a 10-second periodic flush plus a final flush on finish, a separate `_unflushed` buffer retaining the full trace (the rolling `_recent` window is only ±5 s for the centroid), and an offline indicator. Verified: 7 then 12 then 14 samples landing in `walk_samples`.
+
+### Verified (how)
+
+- **Gradle cache warmed** in a throwaway project per WORKSPACE_SETUP.md — 186.8 s first build, then **66.7 s** for subsequent builds. This was flagged as "the single biggest avoidable risk" (30–60 min); it is now retired. `flutter_app` builds in ~1 min.
+- **Real end-to-end on the `Pixel_6_API_34` emulator**, not mocked: registration → farm creation → walk session → GPS sampling → flush → block capture sheet → session restore → dashboard.
+- **Silent tier detection confirmed live**: emulator reports no barometer → farm created as `minimal` → UI honestly states *"Semua fungsi tetap berjalan"*.
+- **Dashboard screenshot verified** showing rain pulse, Advisor verdict, and the terrain canvas with 4 ranked blocks and 6 downhill arrows — **with zero photographs ever taken**, which is huluhilir-rules §6 verified visually rather than only in a test.
+- 22 backend tests + 5 Flutter tests passing. `flutter analyze`: 0 errors, 0 warnings.
+
+### Known gaps — do NOT claim these work
+
+- **No physical phone was ever connected.** Everything above is emulator-verified. Still blocked and untested on real hardware: EXP-3 (Ollama over hotspot), EXP-4 (barometer + drift → the entire OPTIMISED tier), EXP-6 (GPS under canopy), EXP-11 (scrcpy). **The OPTIMISED elevation tier has never run against a real barometer** — only the MINIMAL path is demonstrated.
+- **Camera capture was not verified through the UI.** Driving the emulator's fake-camera app via blind `adb input tap` coordinates proved fragile and was abandoned as low-value; the capture sheet correctly gates SIMPAN BLOK on a photo existing, and the upload/classify path is verified server-side, but the ImagePicker→upload→observation round trip has not been exercised end-to-end from the UI.
+- **`outbox.dart` is written but not wired in.** `queueObservation`/`queueWalkSample` are never called — the walk loop currently buffers in memory and drops samples if the app is killed mid-walk. The offline story is therefore weaker than PLAN.md's Block D "Outbox" row implies. Wiring it is a genuine remaining task, not a polish item.
+- **"Tanya" (RAG chat) has a FAB entry that no-ops.** The Advisor agent exists and works server-side (Block C), but there is no chat screen.
+- **No speech/audio playback.** Every user-facing string carries a `speech_template_id` and the dashboard has a speaker affordance, but it currently shows a snackbar — audio is Block E.
+- **Block detail sheet is minimal** — photo, voice playback, timeline with rainfall overlay, diagnosis history, and treatment log (PROJECT_SPEC §7) are not built; the sheet shows label, state, rank, drainage only.
+- **No signed release APK / keystore** (PLAN.md 0.15, Block F).
+
+---

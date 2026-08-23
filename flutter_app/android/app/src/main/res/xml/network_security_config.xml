@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The LOCAL deployment target is plain HTTP to a laptop on the team's own
+  hotspot (or 10.0.2.2 from an emulator). Android has blocked cleartext by
+  default since API 28, so without this the app fails to reach the backend
+  with a confusing generic socket error - exactly the kind of thing that
+  burns demo time on stage.
+
+  NOTE on scope: Android's <domain> rules match literal hostnames, NOT CIDR
+  ranges - "192.168.1.0" would only ever match that exact address, not the
+  laptop at 192.168.1.57. Since the booth LAN IP is not known until setup,
+  there is no way to enumerate it here, so base-config permits cleartext
+  generally.
+
+  This is acceptable precisely because of how the two targets differ: the
+  CLOUD build points at public HTTPS and never sends cleartext regardless of
+  this file, and the LOCAL build is booth-only (labelled "requires joining
+  our demo WiFi" per docs/PLAN.md). If a genuinely public HTTP-serving build
+  ever shipped, this should be narrowed to the known host first.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true"/>
+</network-security-config>

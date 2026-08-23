@@ -40,6 +40,24 @@ async def create_user(req: UserCreate, session: AsyncSession = Depends(get_sessi
     return UserOut.model_validate(user)
 
 
+@router.get("/users/{user_id}", response_model=UserOut)
+async def get_user(user_id: str, session: AsyncSession = Depends(get_session)) -> UserOut:
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "user not found")
+    return UserOut.model_validate(user)
+
+
+@router.get("/farms/{farm_id}", response_model=FarmOut)
+async def get_farm(farm_id: str, session: AsyncSession = Depends(get_session)) -> FarmOut:
+    """Lets the app rehydrate a persisted session against server truth on
+    launch, rather than trusting a stale local copy of setup_completed_at."""
+    farm = await session.get(Farm, farm_id)
+    if farm is None:
+        raise HTTPException(404, "farm not found")
+    return FarmOut.model_validate(farm)
+
+
 @router.post("/farms", response_model=FarmOut, status_code=201)
 async def create_farm(req: FarmCreate, session: AsyncSession = Depends(get_session)) -> FarmOut:
     """elevation_tier is derived from the device probe, never asked -- detection
