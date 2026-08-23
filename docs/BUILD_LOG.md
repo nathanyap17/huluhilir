@@ -726,3 +726,27 @@ Uvicorn on Cloud Run does not propagate module-level loggers to stdout, which ma
 `terrain_canvas.dart`'s `_ProfileOverlay` drew its own white card **and its own X**, stacked on top of the card's own close button — two X's, the wrapper's on top, so taps landed on whichever won hit-testing. That is the "X doesn't close the block window" report. The wrapper is now positioning and sizing only; `BlockProfileCard` owns its chrome and its single 44px close target. The 3D paths were corrected earlier in the same way.
 
 ---
+
+## [Knowledge + blueprint] Real disease knowledge, and the arbitration made visible
+
+### RAG knowledge base: 5 docs → 28
+
+`knowledge_docs.json` held five short fragments, which is why the advisor could explain drainage and little else. It now carries 23 further docs covering the pathogen and its mechanism (zoospores need free water; runoff carries them downhill; inoculum survives between seasons), **the five disease stages with the symptoms and characteristics of each**, symptom discrimination (lesion vs wet soil, yellowing vs healthy green, what counts as wilt), management rationale, catchment/neighbour dynamics, and salvage triage.
+
+Verified live: *"Apakah peringkat penyakit reput pangkal dan tanda di setiap peringkat?"* now returns a correctly staged answer — latent infection, then collar lesion, then girdling — drawn from retrieval rather than model memory.
+
+**Rule §2 was the constraint that shaped the whole file.** Every doc is namespace `advisory`, and a scripted check confirms none contains a dose, a product name, or a rain-fast duration. Those live only in `rules.json` and reach the farmer through `get_treatment`. The advisor's single tool is scoped away from the authoritative namespace, so this content *cannot* become a treatment instruction no matter how it is queried — the guarantee is structural, not a matter of prompt wording.
+
+Each doc carries Bahasa Malaysia plus a short English gloss, because retrieval scores by keyword overlap and questions will arrive in either language once the EN/BM switch ships.
+
+**Provenance is stated honestly.** These are compiled general agronomic descriptions, not verbatim extracts, and the citation field says exactly that rather than inventing a page reference. An MPB/DOA agronomist and a native BM speaker should review before the pitch.
+
+### Thinking blueprint on the priority action
+
+`GET /recommendations/{id}/blueprint` reconstructs the derivation from `agent_runs.tools_called` — the field that already existed to evidence orchestration. **Nothing is re-inferred and nothing is narrated by a model.** A blueprint that asked an LLM to explain the decision afterwards would be a plausible story *about* the decision rather than the decision, and the two come apart precisely when it matters; if a tool was not called, no step appears for it.
+
+The deferral is shown before the steps, because "why not just spray now" is the question a farmer actually has. It reports the cause stored on the recommendation, which `_reconcile_spray_deferrals` already overrides with the real `find_spray_window` result rather than trusting the model's account of its own reasoning.
+
+An empty step list renders as "no tool calls were recorded for this decision" rather than looking like a failed load — the two must stay distinguishable for the same reason the classifier's silent `unrelated` fallback had to go.
+
+---

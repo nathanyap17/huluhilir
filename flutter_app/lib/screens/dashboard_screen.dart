@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../block_profile.dart';
 import '../brand.dart';
+import '../i18n.dart';
 import '../models.dart';
 import '../providers.dart';
 import '../speech.dart';
 import '../terrain_3d_view.dart';
 import '../terrain_3d_web_view.dart';
 import '../theme.dart';
+import 'blueprint_sheet.dart';
 import 'diagnosis_screen.dart';
 import 'settings_sheet.dart';
 import 'tanya_sheet.dart';
@@ -280,10 +282,22 @@ class _AdvisorCard extends ConsumerWidget {
   }
 }
 
-class _MainActionCard extends StatelessWidget {
+class _MainActionCard extends ConsumerWidget {
   final RecommendationModel action;
   final List<BlockModel> blocks;
   const _MainActionCard({required this.action, required this.blocks});
+
+  /// Opens the derivation for THIS action. Disabled when the payload carried
+  /// no recommendation_id, rather than opening a sheet that would 404.
+  void _openBlueprint(BuildContext context) {
+    if (action.recommendationId.isEmpty) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlueprintSheet(recommendationId: action.recommendationId),
+    );
+  }
 
   String get _blockLabel => blocks
       .firstWhere(
@@ -322,7 +336,7 @@ class _MainActionCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -344,6 +358,31 @@ class _MainActionCard extends StatelessWidget {
             Expanded(
               child: Text('ditangguh: ${action.deferCause}',
                   style: AppText.sans(size: 14, weight: FontWeight.w600, color: AppColors.terracotta)),
+            ),
+          ]),
+        ],
+        // The arbitration is the product; this is the door to seeing it.
+        // Hidden rather than disabled when no id came through, so it can
+        // never open a sheet that would 404.
+        if (action.recommendationId.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          Row(children: [
+            OutlinedButton.icon(
+              onPressed: () => _openBlueprint(context),
+              icon: const Icon(Icons.account_tree_outlined, size: 18),
+              label: Text(tr(ref, 'action.why')),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.olive,
+                side: const BorderSide(color: AppColors.olive),
+                minimumSize: const Size(0, 44),
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.volume_up, color: AppColors.olive),
+              tooltip: tr(ref, 'dash.listen'),
+              onPressed: () =>
+                  speak(context, ref, action.reasonMs, templateId: action.speechTemplateId),
             ),
           ]),
         ],

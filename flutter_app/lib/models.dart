@@ -162,6 +162,8 @@ class AdvisorVerdict {
 }
 
 class RecommendationModel {
+  /// Needed to fetch the decision blueprint for this specific action.
+  final String recommendationId;
   final String blockId;
   final int sequence;
   final String actionType;
@@ -172,6 +174,7 @@ class RecommendationModel {
   final String? speechTemplateId;
 
   RecommendationModel({
+    required this.recommendationId,
     required this.blockId,
     required this.sequence,
     required this.actionType,
@@ -183,6 +186,7 @@ class RecommendationModel {
   });
 
   factory RecommendationModel.fromJson(Map<String, dynamic> json) => RecommendationModel(
+        recommendationId: json['recommendation_id'] ?? '',
         blockId: json['block_id'],
         sequence: json['sequence'],
         actionType: json['action_type'],

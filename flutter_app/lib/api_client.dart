@@ -224,6 +224,12 @@ class ApiClient {
     return Map<String, dynamic>.from(r.data);
   }
 
+  /// How one recommendation was derived, from what the run actually logged.
+  Future<Map<String, dynamic>> recommendationBlueprint(String recommendationId) async {
+    final r = await _dio.get('/recommendations/$recommendationId/blueprint');
+    return Map<String, dynamic>.from(r.data);
+  }
+
   // ---- advisor (Tanya) -----------------------------------------------------
 
   /// Free-form question answered over retrieval.

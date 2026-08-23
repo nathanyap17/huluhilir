@@ -1,10 +1,212 @@
 {
-  "_provenance_note": "Bootstrap advisory corpus for the L3 RAG MVP (docs/PROJECT_SPEC.md: 'JSON file + in-memory similarity over ~40 chunks. No vector database'). This is a small starter set, not the full ~40-chunk target -- same status as rules.json/templates.json: real content curation from MPB/DOA source documents is Abraham's task, these are prep-drafted placeholders. namespace='advisory' only -- never 'authoritative', so nothing here can supply a dose/product/timing (huluhilir-rules skill §1).",
+  "_provenance_note": "Compiled agronomic description of Phytophthora capsici foot rot in black pepper, written for HuluHilir's advisory retrieval layer. These are general, well-established descriptions of the pathogen, its stages and its management rationale. They are NOT verbatim extracts from a named publication, and the citation field says exactly that rather than inventing a page reference. Have an MPB/DOA Sarawak agronomist and a native BM speaker review before the pitch. CRITICAL: every doc here is namespace 'advisory'. Nothing in this file states a dose, a product name, or a rain-fast duration; those live only in rules.json and reach the farmer through get_treatment. Retrieval explains WHY, and must never be able to decide WHAT (huluhilir-rules skill section 2).",
   "docs": [
-    {"doc_id": "kb_001", "namespace": "advisory", "title": "Kenapa parit penting", "publisher": "MPB", "chunk_index": 0, "content": "Air bertakung di pangkal pokok lada menggalakkan Phytophthora capsici merebak. Saliran yang baik mengurangkan risiko reput pangkal sehingga 24%.", "citation": "MPB Panduan Pengurusan Reput Pangkal Lada"},
-    {"doc_id": "kb_002", "namespace": "advisory", "title": "Bila masa untuk diagnosis selepas hujan", "publisher": "DOA Sarawak", "chunk_index": 0, "content": "Simptom reput pangkal biasanya muncul 3 hingga 5 hari selepas hujan lebat kerana tempoh inkubasi kulat. Memeriksa terlalu awal selepas hujan sering tidak menunjukkan apa-apa.", "citation": "DOA Sarawak Extension Guide - Pepper Foot Rot Control"},
-    {"doc_id": "kb_003", "namespace": "advisory", "title": "Tempoh tahan hujan racun kulat", "publisher": "MPB", "chunk_index": 0, "content": "Racun kulat sentuh mudah tertanggal oleh hujan sebelum ia sempat bertindak. Menyembur sejurus sebelum hujan lebat membazirkan produk dan wang.", "citation": "MPB Panduan Pengurusan Reput Pangkal Lada"},
-    {"doc_id": "kb_004", "namespace": "advisory", "title": "Kenapa lokasi menentukan risiko", "publisher": "UNIMAS", "chunk_index": 0, "content": "Kerana penyakit merebak mengikut aliran air, blok di kawasan rendah berisiko lebih tinggi berbanding blok di kawasan tinggi walaupun tiada jangkitan disahkan di situ lagi.", "citation": "docs/PROJECT_SPEC.md §2 (competition proposal insight)"},
-    {"doc_id": "kb_005", "namespace": "advisory", "title": "Kepentingan pemeriksaan berkala walaupun sihat", "publisher": "MPB", "chunk_index": 0, "content": "Ladang yang kekal sihat masih perlu diperiksa dari semasa ke semasa kerana jangkitan awal di pangkal batang sukar dilihat tanpa pemeriksaan rapat.", "citation": "MPB Panduan Pengurusan Reput Pangkal Lada"}
+    {
+      "doc_id": "kb_010",
+      "namespace": "advisory",
+      "title": "Apa itu reput pangkal (foot rot)",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Reput pangkal lada disebabkan oleh Phytophthora capsici, sejenis oomycete yang hidup dalam tanah, bukan kulat biasa. Ia menyerang pangkal batang, akar, daun dan sulur. Penyakit ini adalah punca kematian pokok lada yang paling merosakkan di Sarawak. Foot rot of black pepper is caused by the soil-borne oomycete Phytophthora capsici, attacking collar, roots, leaves and runners.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_011",
+      "namespace": "advisory",
+      "title": "Bagaimana penyakit bergerak: zoospora dan air",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Phytophthora menghasilkan zoospora yang boleh berenang dalam air bebas. Zoospora hanya bergerak apabila ada lapisan air: dalam tanah tepu, air bertakung, atau air larian selepas hujan. Tanpa air bebas, penyakit hampir tidak merebak. Inilah sebabnya hujan lebat, bukan masa berlalu, menentukan bila jangkitan baharu berlaku. Zoospores swim in free water, so heavy rain and surface runoff drive new infection, not elapsed time.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_012",
+      "namespace": "advisory",
+      "title": "Kenapa penyakit bergerak ke hilir",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Air larian mengalir menuruni cerun dan membawa zoospora serta tanah tercemar ke blok di bawah. Blok di hulu yang dijangkiti menjadi punca kepada setiap blok di hilirnya. Jarak mendatar kurang penting berbanding arah aliran air: pokok 40 meter di bawah cerun lebih berisiko daripada pokok 10 meter di atas cerun. Water, not proximity, determines exposure on sloped terrain.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_013",
+      "namespace": "advisory",
+      "title": "Inokulum kekal dalam tanah",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Phytophthora boleh hidup dalam tanah dan sisa tumbuhan yang dijangkiti untuk tempoh yang lama, menunggu keadaan lembap. Membuang pokok yang mati sahaja tidak membersihkan tanah. Kawasan yang pernah dijangkiti kekal berisiko lebih tinggi pada musim hujan berikutnya. Inoculum survives in soil and infected debris between seasons.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_020",
+      "namespace": "advisory",
+      "title": "Peringkat 1: jangkitan awal, belum kelihatan",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Selepas hujan lebat, zoospora menjangkiti akar halus dan pangkal batang. Pada peringkat ini tiada tanda yang boleh dilihat pada daun. Tempoh pendam ini bermakna pokok yang kelihatan sihat mungkin sudah dijangkiti. Memeriksa selepas hujan lebat lebih berguna daripada menunggu daun menunjukkan tanda. Latent stage: infection is established before any foliar symptom appears.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_021",
+      "namespace": "advisory",
+      "title": "Peringkat 2: lesi pangkal, tanda paling awal yang boleh dilihat",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Tanda pertama yang boleh dilihat ialah lesi gelap, coklat kehitaman dan kelihatan basah pada pangkal batang, biasanya di paras tanah atau sedikit di bawahnya. Tepi lesi selalunya tidak jelas dan lembap. Lesi merebak mengelilingi batang. Inilah peringkat rawatan paling berkesan dan tetingkap masa paling penting untuk dikesan. The dark water-soaked collar lesion is the earliest visible and most treatable stage.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_022",
+      "namespace": "advisory",
+      "title": "Peringkat 3: pembelitan batang",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Apabila lesi mengelilingi keseluruhan pangkal batang, saluran air dan nutrien terputus. Selepas ini kerosakan tidak boleh dipulihkan walaupun patogen dibunuh, kerana batang tidak lagi boleh mengangkut air. Daun mula layu kerana kekurangan air, bukan kerana jangkitan pada daun. Once girdled, the vine cannot be recovered even if the pathogen is controlled.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_023",
+      "namespace": "advisory",
+      "title": "Peringkat 4: daun menguning dan gugur",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Daun mula menguning, kemudian layu dan gugur bermula dari bahagian bawah pokok. Ini adalah kesan kepada kerosakan pangkal, bukan permulaan penyakit. Apabila petani nampak daun menguning secara meluas, pangkal batang biasanya sudah rosak teruk. By the time foliage yellows widely, the collar is usually already severely damaged.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_024",
+      "namespace": "advisory",
+      "title": "Peringkat 5: kematian pokok dan penyebaran",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Pokok mati dalam beberapa minggu selepas pembelitan penuh, kadangkala lebih cepat semasa musim hujan lebat. Pokok mati terus melepaskan inokulum ke dalam tanah dan air larian, menjadikannya punca jangkitan kepada blok di hilir. Menguruskan pokok mati adalah sebahagian daripada melindungi blok bawah, bukan sekadar kemasan ladang.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_030",
+      "namespace": "advisory",
+      "title": "Membezakan lesi pangkal daripada perkara lain",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Lesi pangkal ialah tisu pokok yang gelap dan lembap. Ia bukan tanah basah, bukan lumpur melekat, bukan bayang-bayang, dan bukan tiang penyangga berwarna gelap. Untuk memastikan, bersihkan sedikit tanah di pangkal dan lihat sama ada warna gelap itu pada kulit batang. Salah kenal paling biasa ialah tanah lembap dianggap lesi. Dark wet soil and shadow are not lesions.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_031",
+      "namespace": "advisory",
+      "title": "Daun menguning: banyak sebab, bukan semua reput pangkal",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Daun menguning boleh disebabkan kekurangan nutrien, tanah tepu, kerosakan akar, serangan nematod, atau reput pangkal. Menguning sahaja tidak mengesahkan reput pangkal. Petunjuk yang membezakan ialah keadaan pangkal batang: jika ada lesi gelap di pangkal, menguning itu berkemungkinan besar reput pangkal. Sentiasa periksa pangkal, bukan hanya daun.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_032",
+      "namespace": "advisory",
+      "title": "Daun hijau yang sihat",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Daun lada yang sihat berwarna hijau, sama ada hijau tua, hijau sederhana, atau hijau muda pada pucuk baharu. Bintik kecil, habuk, gigitan serangga, titisan air dan bayang-bayang masih dikira sihat. Cahaya petang atau bayang boleh membuat daun hijau kelihatan kekuningan dalam gambar, tetapi itu bukan klorosis. A predominantly green leaf is healthy even under warm or dim light.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_033",
+      "namespace": "advisory",
+      "title": "Layu: apa yang dikira dan apa yang tidak",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Layu bermaksud daun kehilangan ketegangan: lembik, terkulai, menggulung, atau sudah gugur sehingga buku batang terdedah. Pokok hijau yang tegak dan segar, walaupun dilihat dari jauh, bukan layu. Layu pada reput pangkal biasanya bermula selepas pangkal rosak. Wilt requires visible loss of turgor or leaf drop, not merely a distant view of a vine.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_040",
+      "namespace": "advisory",
+      "title": "Saliran ialah kawalan utama",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Kerana zoospora memerlukan air bebas untuk bergerak, mengurangkan air bertakung adalah kawalan paling berkesan dan paling murah. Parit yang berfungsi, tanah tidak tepu di pangkal, dan mengalihkan air larian daripada blok sihat mengurangkan risiko dengan ketara. Kerja parit boleh dibuat bila-bila masa termasuk sebelum hujan, kerana ia tidak dibasuh oleh hujan seperti semburan.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_041",
+      "namespace": "advisory",
+      "title": "Kenapa masa semburan penting",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Racun kulat sentuhan perlu masa melekat pada tisu pokok sebelum hujan. Jika hujan lebat turun terlalu awal selepas semburan, racun dibasuh ke dalam tanah sebelum sempat berkesan: wang hilang dan pokok tidak terlindung. Oleh itu ramalan hujan menentukan bila semburan berbaloi. Tempoh rain-fast bagi setiap produk ada dalam jadual rawatan rasmi aplikasi ini, bukan dalam penerangan ini.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_042",
+      "namespace": "advisory",
+      "title": "Kenapa parit dahulu, semburan kemudian",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Apabila hujan lebat dijangka dalam masa terdekat, mengalihkan air memberi perlindungan serta-merta manakala semburan berkemungkinan dibasuh. Urutan yang munasabah ialah kerja fizikal dahulu, kemudian rawatan kimia apabila ada tetingkap kering. Ini bukan menangguhkan rawatan, ia menyusun supaya kedua-duanya berkesan. Drainage first, spray when a dry window exists.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_043",
+      "namespace": "advisory",
+      "title": "Sanitasi dan bahan tanaman",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Elakkan memindahkan tanah, keratan atau peralatan daripada kawasan dijangkiti ke kawasan bersih. Gunakan keratan daripada pokok yang sihat. Elakkan kecederaan pada pangkal batang semasa mencangkul atau merumput, kerana luka menjadi pintu masuk jangkitan.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_044",
+      "namespace": "advisory",
+      "title": "Kerosakan akar dan luka",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Sebarang luka pada pangkal atau akar memudahkan jangkitan. Mencangkul terlalu rapat dengan pangkal, kerosakan oleh haiwan, dan serangan nematod semuanya meningkatkan risiko. Menjaga kawasan pangkal supaya tidak terganggu adalah pencegahan yang mudah dan percuma.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_045",
+      "namespace": "advisory",
+      "title": "Naungan, jarak tanaman dan aliran udara",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Naungan terlalu tebal dan jarak tanaman terlalu rapat melambatkan pengeringan selepas hujan, menjadikan keadaan lembap lebih lama. Membenarkan aliran udara dan cahaya membantu permukaan tanah dan pangkal kering dengan lebih cepat, mengurangkan tempoh zoospora aktif.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_046",
+      "namespace": "advisory",
+      "title": "Bila perlu rujuk pegawai pertanian",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Apabila sebahagian besar blok dijangkiti, atau pokok terus mati walaupun saliran dan rawatan dibuat, kes ini melebihi kawalan peringkat ladang. Rekod digital jangkitan dalam aplikasi ini boleh diserahkan kepada pegawai DOA atau MPB supaya mereka tiba dengan sejarah kes yang lengkap.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_050",
+      "namespace": "advisory",
+      "title": "Risiko dikongsi antara jiran",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Kerana air melintasi sempadan tanah, jangkitan di ladang jiran di hulu memberi kesan kepada ladang di hilir. Berkongsi amaran awal memberi masa kepada jiran membuka parit sebelum air sampai. Aplikasi ini hanya menyediakan draf mesej: petani sendiri memutuskan sama ada hendak menghantar.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_051",
+      "namespace": "advisory",
+      "title": "Pemeriksaan mengikut denyut hujan",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Masa paling berguna untuk memeriksa ialah beberapa hari selepas hujan lebat, kerana itulah bila jangkitan baharu berlaku. Memeriksa mengikut jadual tetap kurang berkesan berbanding memeriksa mengikut denyut hujan. Inspect after rain pulses rather than on a fixed calendar.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    },
+    {
+      "doc_id": "kb_052",
+      "namespace": "advisory",
+      "title": "Apa yang boleh dan tidak boleh dipulihkan",
+      "publisher": "HuluHilir KB",
+      "chunk_index": 0,
+      "content": "Pokok pada peringkat lesi awal selalunya boleh diselamatkan. Pokok yang sudah dibelit sepenuhnya atau sudah gugur daun secara meluas jarang pulih, dan usaha lebih baik ditumpukan kepada melindungi blok di hilir yang masih sihat. Triase ini bukan menyerah kalah, ia menumpukan sumber terhad kepada pokok yang masih boleh diselamatkan.",
+      "citation": "Compiled agronomic description of Phytophthora capsici foot rot for HuluHilir; align with MPB / DOA Sarawak extension guidance before field use"
+    }
   ]
 }
