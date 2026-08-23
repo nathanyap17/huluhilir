@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+pydantic-settings
+sqlalchemy>=2
+aiosqlite
+onnxruntime
+pillow
+numpy
+litellm
+google-adk
+python-multipart

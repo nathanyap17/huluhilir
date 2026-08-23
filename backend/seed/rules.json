@@ -1,0 +1,89 @@
+{
+  "_provenance_note": "Doses/timings below are standard MPB/DOA-published guidance for Phytophthora foot rot on black pepper, entered from general agronomic literature during prep. Abraham to verify each source_ref against the exact MPB/DOA document/page before demo day per WORKSPACE_SETUP.md item 0.9 -- swap _verified_pending for verified:true only after that check.",
+  "treatments": [
+    {
+      "treatment_id": "metalaxyl_drench",
+      "name_ms": "Rendaman Metalaxyl + Mankozeb",
+      "name_en": "Metalaxyl + Mancozeb soil drench",
+      "type": "systemic",
+      "applies_to": ["collar_lesion", "defoliation_wilt"],
+      "rainfast_hours": 24,
+      "dose_text_ms": "2.5 g/L air, rendam pangkal batang dan tanah sekeliling, ulang selepas 14 hari",
+      "application_method": "drench",
+      "reentry_hours": 12,
+      "source_ref": "MPB Panduan Pengurusan Reput Pangkal Lada (metalaxyl-mancozeb combination product label rate)",
+      "source_url": null,
+      "_verified_pending": true
+    },
+    {
+      "treatment_id": "fosetyl_al_spray",
+      "name_ms": "Semburan Fosetil-Aluminium",
+      "name_en": "Fosetyl-aluminium foliar/collar spray",
+      "type": "systemic",
+      "applies_to": ["foliar_yellowing", "collar_lesion"],
+      "rainfast_hours": 6,
+      "dose_text_ms": "2.5-3.0 g/L air, sembur menyeluruh daun dan pangkal batang",
+      "application_method": "spray",
+      "reentry_hours": 12,
+      "source_ref": "DOA Sarawak Extension Guide - Pepper Foot Rot Control (fosetyl-Al systemic fungicide rate)",
+      "source_url": null,
+      "_verified_pending": true
+    },
+    {
+      "treatment_id": "bordeaux_mixture",
+      "name_ms": "Campuran Bordeaux 1%",
+      "name_en": "1% Bordeaux mixture (copper sulphate + lime)",
+      "type": "contact",
+      "applies_to": ["collar_lesion", "foliar_yellowing"],
+      "rainfast_hours": 4,
+      "dose_text_ms": "1% (10 g kuprum sulfat + 10 g kapur / 1 L air), sembur pangkal batang",
+      "application_method": "spray",
+      "reentry_hours": 6,
+      "source_ref": "MPB Panduan Pengurusan Reput Pangkal Lada (contact fungicide, traditional Bordeaux rate)",
+      "source_url": null,
+      "_verified_pending": true
+    },
+    {
+      "treatment_id": "trichoderma_biocontrol",
+      "name_ms": "Trichoderma harzianum (biokawalan)",
+      "name_en": "Trichoderma harzianum biological soil treatment",
+      "type": "biological",
+      "applies_to": ["healthy_collar", "foliar_yellowing"],
+      "rainfast_hours": null,
+      "dose_text_ms": "5 g/liang tanaman, gaul dengan tanah sekitar pangkal batang, ulang setiap 3 bulan",
+      "application_method": "drench",
+      "reentry_hours": 0,
+      "source_ref": "MPB Panduan Pengurusan Reput Pangkal Lada (preventive biocontrol, non-rainfast-critical)",
+      "source_url": null,
+      "_verified_pending": true
+    },
+    {
+      "treatment_id": "clear_drainage",
+      "name_ms": "Pembersihan Parit / Saliran",
+      "name_en": "Drain clearing / cultural drainage improvement",
+      "type": "cultural",
+      "applies_to": ["collar_lesion", "defoliation_wilt", "foliar_yellowing", "healthy_collar"],
+      "rainfast_hours": null,
+      "dose_text_ms": null,
+      "application_method": "clear_drain",
+      "reentry_hours": 0,
+      "source_ref": "MPB/DOA field study: drainage management reduced foot rot losses 24% (USD 439/ha), exceeding fungicide's 20% -- see docs/PROJECT_SPEC.md §2",
+      "source_url": null,
+      "_verified_pending": false
+    },
+    {
+      "treatment_id": "remove_infected_vine",
+      "name_ms": "Cabut dan Musnahkan Pokok Terinfeksi",
+      "name_en": "Remove and destroy infected vine",
+      "type": "cultural",
+      "applies_to": ["defoliation_wilt"],
+      "rainfast_hours": null,
+      "dose_text_ms": null,
+      "application_method": "remove_vine",
+      "reentry_hours": 0,
+      "source_ref": "MPB Panduan Pengurusan Reput Pangkal Lada (sanitation -- remove inoculum source for advanced/unrecoverable cases)",
+      "source_url": null,
+      "_verified_pending": true
+    }
+  ]
+}

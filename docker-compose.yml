@@ -1,0 +1,31 @@
+services:
+  api:
+    build: ./backend
+    ports:
+      - "0.0.0.0:8000:8000"
+    volumes:
+      - ./classifier:/classifier:ro
+      - api-data:/app/data
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/huluhilir.db
+      - LITELLM_MODEL=${LITELLM_MODEL:-ollama_chat/qwen2.5:14b}
+      - OLLAMA_API_BASE=http://host.docker.internal:11434
+      - TTS_BASE_URL=http://tts:8001
+      - CNN_MODEL_PATH=/classifier/best-model/huluhilir_l1.onnx
+      - CNN_LABELS_PATH=/classifier/best-model/labels.txt
+      - CNN_PREPROCESS_PATH=/classifier/best-model/preprocess.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - tts
+
+  tts:
+    build: ./tts
+    ports:
+      - "0.0.0.0:8001:8001"
+    volumes:
+      - tts-cache:/root/.cache/huggingface
+
+volumes:
+  api-data:
+  tts-cache:

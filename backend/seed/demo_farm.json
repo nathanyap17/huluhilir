@@ -1,0 +1,23 @@
+{
+  "_provenance_note": "Synthetic placeholder farm near Kuching (1.5533, 110.3592 - EXP-10 SRTM sanity point) so the pipeline is demoable before Nathan records the real walk (PLAN.md task 0.14 / WORKSPACE_SETUP.md). Replace before the pitch: real walk proves the loop, per VALIDATION_CHECKLIST.md decision #2.",
+  "user": {
+    "display_name": "Nathan Yap",
+    "district": "Kuching",
+    "language_pref": "ms"
+  },
+  "farm": {
+    "name": "Kebun Demo HuluHilir",
+    "centroid_lat": 1.5533,
+    "centroid_lon": 110.3592,
+    "elevation_tier": "minimal",
+    "barometer_available": false
+  },
+  "blocks": [
+    {"label": "Blok Atas", "elevation_rank": 1, "centroid_lat": 1.5540, "centroid_lon": 110.3588, "drainage": "good", "vine_count": 40, "current_state": "protected"},
+    {"label": "Blok Tengah Kiri", "elevation_rank": 2, "centroid_lat": 1.5537, "centroid_lon": 110.3590, "drainage": "fair", "vine_count": 35, "current_state": "protected"},
+    {"label": "Blok Tengah Kanan", "elevation_rank": 3, "centroid_lat": 1.5535, "centroid_lon": 110.3595, "drainage": "fair", "vine_count": 38, "current_state": "protected"},
+    {"label": "Blok Kebun Tua", "elevation_rank": 4, "centroid_lat": 1.5532, "centroid_lon": 110.3591, "drainage": "poor", "vine_count": 30, "current_state": "protected"},
+    {"label": "Blok Bawah Kiri", "elevation_rank": 5, "centroid_lat": 1.5528, "centroid_lon": 110.3589, "drainage": "poor", "vine_count": 32, "current_state": "protected"},
+    {"label": "Blok Bawah Sungai", "elevation_rank": 6, "centroid_lat": 1.5524, "centroid_lon": 110.3593, "drainage": "poor", "vine_count": 28, "current_state": "protected"}
+  ]
+}

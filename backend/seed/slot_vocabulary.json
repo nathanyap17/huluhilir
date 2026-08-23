@@ -1,0 +1,30 @@
+{
+  "_provenance_note": "Finite pre-translated vocabulary so slot-filled speech is dynamic without hallucinating Iban (docs/PROJECT_SPEC.md L0). text_iba pending native-speaker review, same as templates.json.",
+  "slots": [
+    {"slot_id": "day_monday", "slot_type": "day", "text_ms": "Isnin", "text_iba": null, "verified": false},
+    {"slot_id": "day_tuesday", "slot_type": "day", "text_ms": "Selasa", "text_iba": null, "verified": false},
+    {"slot_id": "day_wednesday", "slot_type": "day", "text_ms": "Rabu", "text_iba": null, "verified": false},
+    {"slot_id": "day_thursday", "slot_type": "day", "text_ms": "Khamis", "text_iba": null, "verified": false},
+    {"slot_id": "day_friday", "slot_type": "day", "text_ms": "Jumaat", "text_iba": null, "verified": false},
+    {"slot_id": "day_saturday", "slot_type": "day", "text_ms": "Sabtu", "text_iba": null, "verified": false},
+    {"slot_id": "day_sunday", "slot_type": "day", "text_ms": "Ahad", "text_iba": null, "verified": false},
+    {"slot_id": "day_today", "slot_type": "day", "text_ms": "hari ini", "text_iba": null, "verified": false},
+    {"slot_id": "day_tomorrow", "slot_type": "day", "text_ms": "esok", "text_iba": null, "verified": false},
+    {"slot_id": "num_1", "slot_type": "number", "text_ms": "satu", "text_iba": null, "verified": false},
+    {"slot_id": "num_2", "slot_type": "number", "text_ms": "dua", "text_iba": null, "verified": false},
+    {"slot_id": "num_3", "slot_type": "number", "text_ms": "tiga", "text_iba": null, "verified": false},
+    {"slot_id": "num_4", "slot_type": "number", "text_ms": "empat", "text_iba": null, "verified": false},
+    {"slot_id": "num_5", "slot_type": "number", "text_ms": "lima", "text_iba": null, "verified": false},
+    {"slot_id": "num_6", "slot_type": "number", "text_ms": "enam", "text_iba": null, "verified": false},
+    {"slot_id": "action_spray", "slot_type": "action", "text_ms": "Sembur", "text_iba": null, "verified": false},
+    {"slot_id": "action_drench", "slot_type": "action", "text_ms": "Rendam", "text_iba": null, "verified": false},
+    {"slot_id": "action_clear_drain", "slot_type": "action", "text_ms": "Buka parit", "text_iba": null, "verified": false},
+    {"slot_id": "action_isolate_vine", "slot_type": "action", "text_ms": "Asingkan pokok", "text_iba": null, "verified": false},
+    {"slot_id": "action_remove_vine", "slot_type": "action", "text_ms": "Cabut pokok", "text_iba": null, "verified": false},
+    {"slot_id": "action_inspect", "slot_type": "action", "text_ms": "Periksa", "text_iba": null, "verified": false},
+    {"slot_id": "state_protected", "slot_type": "state", "text_ms": "Selamat", "text_iba": null, "verified": false},
+    {"slot_id": "state_alerted", "slot_type": "state", "text_ms": "Berisiko", "text_iba": null, "verified": false},
+    {"slot_id": "state_harmed", "slot_type": "state", "text_ms": "Terjejas", "text_iba": null, "verified": false},
+    {"slot_id": "state_overrun", "slot_type": "state", "text_ms": "Teruk", "text_iba": null, "verified": false}
+  ]
+}
