@@ -31,8 +31,12 @@ class ComputeSpreadRequest(ORMModel):
     source_block_id: str
     source_class: str = Field(description="Predicted DiseaseClass at the source block")
     farm_graph: FarmGraph
-    rainfall_7d_mm: float
-    forecast_7d_mm: float
+    rainfall_7d_mm: float = Field(
+        ge=0, description="Real value from get_weather -- never a placeholder. Negative is always invalid."
+    )
+    forecast_7d_mm: float = Field(
+        ge=0, description="Real value from get_weather -- never a placeholder. Negative is always invalid."
+    )
     elevation_tier: ElevationTier = Field(
         description="Confidence base range: minimal 0.55-0.75, optimised 0.75-0.95 (docs/PROJECT_SPEC.md §4)"
     )

@@ -8,8 +8,42 @@ never loops.
 """
 import heapq
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.core import Block, FlowEdge
 from app.schemas.enums import BlockState, DiseaseClass, ElevationTier
-from app.schemas.spread import ComputeSpreadRequest, ComputeSpreadResult, SpreadResultItem
+from app.schemas.spread import (
+    ComputeSpreadRequest,
+    ComputeSpreadResult,
+    FarmGraph,
+    FarmGraphEdge,
+    FarmGraphNode,
+    SpreadResultItem,
+)
+
+
+async def load_farm_graph(session: AsyncSession, farm_id: str) -> FarmGraph:
+    """Builds the FarmGraph from stored blocks/flow_edges. The LLM never
+    constructs this itself -- it only supplies source_block_id, source_class,
+    and weather figures; the graph is combinatorial computation the machine
+    already holds (docs/PROJECT_SPEC.md §3 L2 rationale)."""
+    blocks = (await session.execute(select(Block).where(Block.farm_id == farm_id))).scalars().all()
+    edges = (await session.execute(select(FlowEdge).where(FlowEdge.farm_id == farm_id))).scalars().all()
+    return FarmGraph(
+        nodes=[FarmGraphNode(block_id=b.block_id, elevation_rank=b.elevation_rank) for b in blocks],
+        edges=[
+            FarmGraphEdge(
+                from_block_id=e.from_block_id,
+                to_block_id=e.to_block_id,
+                horizontal_dist_m=e.horizontal_dist_m,
+                flow_weight=e.flow_weight,
+                barrier=e.barrier,
+                farmer_confirmed=e.farmer_confirmed,
+            )
+            for e in edges
+        ],
+    )
 
 # How much a source diagnosis class drives downhill spread. Healthy/unrelated
 # classes seed no projection at all -- there is nothing to spread.
@@ -40,8 +74,16 @@ CONFIDENCE_RANGE = {
 
 def _rain_factor(rainfall_7d_mm: float, forecast_7d_mm: float) -> float:
     """Rain pulses drive spread, not steady drizzle. Normalise against a
-    100mm/week reference (a genuinely heavy Sarawak week) and cap at 1.0."""
-    combined = rainfall_7d_mm + forecast_7d_mm
+    100mm/week reference (a genuinely heavy Sarawak week) and cap at 1.0.
+
+    Clamped to >= 0 defensively: an LLM-driven caller has been observed
+    passing a negative sentinel (e.g. -9999) when it calls this tool in
+    parallel with get_weather before that result is available, rather than
+    waiting -- see docs/BUILD_LOG.md § Block C. Clamping turns that into a
+    zero-risk (not a crash), while build_tools' compute_spread wrapper still
+    surfaces a tool error to prompt a retry with real numbers.
+    """
+    combined = max(0.0, rainfall_7d_mm) + max(0.0, forecast_7d_mm)
     return min(1.0, combined / 100.0)
 
 

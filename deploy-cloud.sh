@@ -18,8 +18,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --allow-unauthenticated \
   --min-instances 1 \
   --set-env-vars "LITELLM_MODEL=vertex_ai/gemini-2.0-flash" \
-  --set-env-vars "VERTEX_PROJECT=$PROJECT_ID" \
-  --set-env-vars "VERTEX_LOCATION=$REGION" \
+  --set-env-vars "VERTEXAI_PROJECT=$PROJECT_ID" \
+  --set-env-vars "VERTEXAI_LOCATION=$REGION" \
   --set-env-vars "DATABASE_URL=sqlite+aiosqlite:////tmp/huluhilir.db"
 
 echo

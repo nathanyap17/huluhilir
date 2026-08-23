@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal, init_db
 from app.models.core import Block, Farm, FlowEdge, User
-from app.models.knowledge import TreatmentOption
+from app.models.knowledge import KnowledgeDoc, TreatmentOption
 from app.models.speech import SlotVocabulary, SpeechTemplate
 
 SEED_DIR = Path(__file__).parent
@@ -53,6 +53,24 @@ async def seed_treatments(session):
             source_url=t.get("source_url"),
         ))
     print(f"  treatment_options: {len(data['treatments'])}")
+
+
+async def seed_knowledge(session):
+    data = load("knowledge_docs.json")
+    for d in data["docs"]:
+        exists = await session.get(KnowledgeDoc, d["doc_id"])
+        if exists:
+            continue
+        session.add(KnowledgeDoc(
+            doc_id=d["doc_id"],
+            namespace=d["namespace"],
+            title=d["title"],
+            publisher=d.get("publisher"),
+            chunk_index=d["chunk_index"],
+            content=d["content"],
+            citation=d["citation"],
+        ))
+    print(f"  knowledge_docs: {len(data['docs'])}")
 
 
 async def seed_speech(session):
@@ -102,7 +120,11 @@ async def seed_demo_farm(session):
     session.add(user)
     await session.flush()
 
-    farm = Farm(user_id=user.user_id, **data["farm"])
+    # Demo farm represents an already-onboarded farm ready for diagnosis
+    # (PLAN.md Block F "seed demo farm, known-good state") -- setup_completed_at
+    # set so SetupCoordinator short-circuits immediately rather than looping.
+    from app.models.base import now_kuching
+    farm = Farm(user_id=user.user_id, setup_completed_at=now_kuching(), **data["farm"])
     session.add(farm)
     await session.flush()
 
@@ -154,6 +176,8 @@ async def main():
     async with SessionLocal() as session:
         print("Seeding treatment_options ...")
         await seed_treatments(session)
+        print("Seeding knowledge_docs ...")
+        await seed_knowledge(session)
         print("Seeding speech_templates + slot_vocabulary ...")
         await seed_speech(session)
         print("Seeding demo farm ...")

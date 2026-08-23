@@ -17,8 +17,13 @@ class Settings(BaseSettings):
     # Default Credentials) -- no API key to manage or leak. gemini_api_key is
     # kept only as an escape hatch if Vertex AI auth misbehaves on deploy day;
     # nothing in application code branches on which of the two is set.
-    vertex_project: str | None = None
-    vertex_location: str = "asia-southeast1"
+    #
+    # Field names/env vars are VERTEXAI_* (not VERTEX_*) because that's what
+    # litellm's Vertex AI integration reads directly via os.environ -- see
+    # LiteLlm's own docstring in adk-python/src/google/adk/models/lite_llm.py.
+    # Getting this wrong doesn't raise; it silently fails to authenticate.
+    vertexai_project: str | None = None
+    vertexai_location: str = "asia-southeast1"
     gemini_api_key: str | None = None
 
     cnn_model_path: str = "../classifier/best-model/huluhilir_l1.onnx"
