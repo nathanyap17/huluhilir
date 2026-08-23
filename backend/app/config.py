@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     vertexai_location: str = "asia-southeast1"
     gemini_api_key: str | None = None
 
+    # Photos and voice labels. Local disk locally; on Cloud Run this must point
+    # at a writable path (/tmp) or Firebase Storage -- see docs/BUILD_LOG.md.
+    media_root: str = "./media"
+
     cnn_model_path: str = "../classifier/best-model/huluhilir_l1.onnx"
     cnn_labels_path: str = "../classifier/best-model/labels.txt"
     cnn_preprocess_path: str = "../classifier/best-model/preprocess.json"

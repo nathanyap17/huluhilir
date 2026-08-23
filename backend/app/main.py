@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
-from app.routers import agent, health, tools
+from app.routers import agent, dashboard, diagnosis, health, media, setup, tools
 
 
 @asynccontextmanager
@@ -32,3 +32,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(tools.router)
 app.include_router(agent.router)
+app.include_router(setup.router)
+app.include_router(media.router)
+app.include_router(diagnosis.router)
+app.include_router(dashboard.router)
