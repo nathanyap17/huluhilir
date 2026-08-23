@@ -838,3 +838,32 @@ Three things needed more than a string swap:
 Verified after deploy in both artefacts rather than assumed: the English strings are present in the served `main.dart.js` **and** in the APK's compiled `libapp.so`. The APK byte size was unchanged from the previous build, which looked like a stale artefact until the AOT library was checked directly.
 
 ---
+
+## [Cycle counting] "Halts at 1/2" — a bug I introduced, and a gate that should never have existed
+
+### The counting bug
+
+The retake fix added `or prior_attempts >= 1` to the progress condition. Since `len(already) <= 1` **is** `prior_attempts == 0`, the whole expression reduced to `prior_attempts == 0 or prior_attempts >= 1` — **always true**. Every accepted photo incremented `blocks_captured`, so one block could complete a whole cycle by itself, and the counter no longer tracked blocks at all.
+
+Counting observation rows cannot express "first accepted photo per block", because every attempt is stored whether accepted or not. `block.last_diagnosis_id` can: it is only ever set on an accepted photo. If it already points at a diagnosis from *this* cycle, the block is counted; otherwise it is not. No schema change, and idempotent under repeat capture.
+
+Verified live on a purpose-built two-block farm:
+
+| step | result | cycle |
+|---|---|---|
+| B1 leaf photo | `healthy_leaf`, accepted | **1/2** |
+| B1 again, same block | accepted | **1/2** — no double count |
+| B2 dark photo | `unrelated`, rejected | **1/2** |
+| B2 forced | accepted | **complete** |
+
+### The arbitration gate
+
+`DAPATKAN CADANGAN` was disabled until `captured >= total`. That directly contradicts rule §6 — the app is committed to working with **zero photographs** — and in practice it stranded people: one block the classifier kept rejecting meant arbitration could never start no matter how many others were checked. It now needs one accepted photo, and the button carries `(captured/total)` so the farmer knows how complete the picture is rather than being silently blocked.
+
+### "No priority action" is often correct, and looked broken
+
+With both blocks returning `healthy_leaf` / `unrelated`, every block stayed `protected`. Step 3 of the root agent's sequence is *"if any block risk >= threshold -> get_treatment"*, so it called `get_weather`, found nothing at risk, and correctly produced no recommendation. **The agent was right.** The dashboard then showed nothing where the action card goes, which reads as a failure rather than a clean bill of health.
+
+Added `_AllClearCard`: no recommendation is a *result*, not an empty state. It says every checked block looks healthy and to check again after the next heavy rain.
+
+---

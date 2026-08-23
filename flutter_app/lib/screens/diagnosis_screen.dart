@@ -175,6 +175,17 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
     final total = _cycle?.blocksTotal ?? _blocks.length;
     final allDone = captured >= total && total > 0;
 
+    // Arbitration is NOT gated on capturing every block. The product works
+    // with zero photographs at all (huluhilir-rules §6), so demanding 100%
+    // before it will reason is inconsistent -- and in practice it stranded
+    // farmers: one block the classifier kept rejecting meant the run could
+    // never start, no matter how many other blocks were checked.
+    //
+    // One accepted photo is enough to have something to arbitrate over. The
+    // button says how complete the picture is so the farmer chooses knowingly
+    // rather than being blocked.
+    final canArbitrate = captured > 0 && !_busy;
+
     return Scaffold(
       appBar: AppBar(title: Text('Diagnosis ($captured/$total)'), actions: const [BrandLogoAction()]),
       body: Column(children: [
@@ -257,12 +268,17 @@ class _DiagnosisScreenState extends ConsumerState<DiagnosisScreen> {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: FilledButton(
-              onPressed: (!allDone || _busy) ? null : _runAgent,
+              onPressed: canArbitrate ? _runAgent : null,
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(56)),
               child: _busy
                   ? const SizedBox(
                       height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('DAPATKAN CADANGAN', style: TextStyle(fontSize: 17)),
+                  : Text(
+                      allDone
+                          ? tr(ref, 'diag.runAgent')
+                          : '${tr(ref, 'diag.runAgent')} ($captured/$total)',
+                      style: const TextStyle(fontSize: 17),
+                    ),
             ),
           ),
         ),

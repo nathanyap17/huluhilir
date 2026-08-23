@@ -79,6 +79,14 @@ class DashboardScreen extends ConsumerWidget {
                     if (data.topAction != null) ...[
                       _MainActionCard(action: data.topAction!, blocks: data.blocks),
                       const SizedBox(height: 24),
+                    ] else ...[
+                      // No recommendation is a RESULT, not an empty state. The
+                      // agent only arbitrates when a block is actually at
+                      // risk, so a healthy farm legitimately produces nothing
+                      // -- and an empty space there reads as "the app broke"
+                      // rather than "your vines are fine".
+                      const _AllClearCard(),
+                      const SizedBox(height: 24),
                     ],
                     _TerrainCard(data: data),
                     const SizedBox(height: 24),
@@ -410,6 +418,36 @@ class _MainActionCard extends ConsumerWidget {
   }
 
   String _terminal(String reason) => reason.isEmpty ? '.' : '. $reason';
+}
+
+/// Shown when arbitration ran and found nothing that needs doing.
+class _AllClearCard extends ConsumerWidget {
+  const _AllClearCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.hairline),
+        boxShadow: softShadow(),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.check_circle_outline, size: 16, color: AppColors.olive),
+          const SizedBox(width: 8),
+          Text(tr(ref, 'clear.title'), style: AppText.eyebrow(color: AppColors.olive)),
+        ]),
+        const SizedBox(height: 12),
+        Text(tr(ref, 'clear.body'), style: AppText.serif(size: 17)),
+        const SizedBox(height: 8),
+        Text(tr(ref, 'clear.next'),
+            style: AppText.sans(size: 12, color: AppColors.oliveLight)),
+      ]),
+    );
+  }
 }
 
 class _TerrainCard extends StatelessWidget {

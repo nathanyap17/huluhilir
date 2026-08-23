@@ -125,6 +125,9 @@ const _ms = <String, String>{
   'error.title': 'Ralat',
   'error.noFarm': 'Tiada ladang',
   'error.sendFailed': 'Gagal hantar',
+  'clear.title': 'TIADA TINDAKAN PERLU',
+  'clear.body': 'Semua blok yang diperiksa kelihatan sihat. Tiada semburan atau kerja parit dicadangkan sekarang.',
+  'clear.next': 'Periksa semula selepas hujan lebat berikutnya.',
 
   'reg.yourName': 'Nama anda',
   'reg.district': 'Daerah',
@@ -257,6 +260,9 @@ const _en = <String, String>{
   'error.title': 'Error',
   'error.noFarm': 'No farm',
   'error.sendFailed': 'Could not send',
+  'clear.title': 'NO ACTION NEEDED',
+  'clear.body': 'Every block you checked looks healthy. No spraying or drainage work is recommended right now.',
+  'clear.next': 'Check again after the next heavy rain.',
 
   'reg.yourName': 'Your name',
   'reg.district': 'District',

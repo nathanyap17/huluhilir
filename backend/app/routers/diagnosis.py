@@ -186,6 +186,10 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
 
     counts_as_check = result.mismatch_flag is None or forced or exhausted
 
+    # Captured BEFORE the update below, because it is the evidence of whether
+    # this block has already been counted in this cycle.
+    prior_last_diagnosis_id = block.last_diagnosis_id if block is not None else None
+
     if block is not None and counts_as_check:
         block.last_diagnosis_id = diagnosis.diagnosis_id
         # Worst-class-wins: never downgrade a block within a cycle.
@@ -199,20 +203,26 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     if req.cycle_id and counts_as_check:
         cycle = await session.get(DiagnosisCycle, req.cycle_id)
         if cycle is not None:
-            already = (
-                await session.execute(
-                    select(Observation).where(
-                        Observation.cycle_id == req.cycle_id, Observation.block_id == req.block_id
-                    )
-                )
-            ).scalars().all()
-            # Only the FIRST accepted photo per block advances progress --
-            # multi-sample capture (2-4 photos/block) must not overcount.
-            # Only the FIRST accepted photo per block advances progress.
-            # Counting accepted rows rather than all rows, so the earlier
-            # rejected attempts on this block do not suppress the increment
-            # once one is finally accepted.
-            if len(already) <= 1 or prior_attempts >= 1:
+            # Progress advances once per block, on its first ACCEPTED photo.
+            #
+            # Counting observation rows cannot express that: every attempt is
+            # stored, accepted or not, so "rows <= 1" wrongly suppressed the
+            # increment for a block whose first try was rejected, and the
+            # clause added to compensate (`or prior_attempts >= 1`) reduced to
+            # `prior_attempts == 0 or prior_attempts >= 1` -- always true, so
+            # every photo incremented and a single block could complete the
+            # whole cycle on its own.
+            #
+            # `block.last_diagnosis_id` is the honest signal: it is only ever
+            # set on an accepted photo. If it already pointed at a diagnosis
+            # from THIS cycle, this block is counted; otherwise it is not.
+            # No schema change, and idempotent under repeat captures.
+            already_counted = False
+            if prior_last_diagnosis_id:
+                prior = await session.get(Diagnosis, prior_last_diagnosis_id)
+                already_counted = prior is not None and prior.cycle_id == req.cycle_id
+
+            if not already_counted:
                 cycle.blocks_captured += 1
             if cycle.blocks_captured >= cycle.blocks_total:
                 cycle.status = "complete"
