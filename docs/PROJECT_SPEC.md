@@ -392,3 +392,129 @@ LAPTOP (docker compose up)               GOOGLE CLOUD
 **No web build of the app.** Flutter Web cannot access the barometer reliably and has coarser GPS — it would break the setup flow that justifies Flutter.
 
 **Demo setup:** projector shows scrcpy (live phone) **beside** a live `tools_called` log. Visible orchestration beats described orchestration.
+
+---
+
+## 9 · Frontend components — data dictionary & navigation
+
+This section did not exist in the original proposal. It documents what was actually built as the design evolved past the initial spec — component by component: which endpoint feeds it, which fields it renders, and why it exists. Source of truth is `flutter_app/lib/`; if this section and the code disagree, the code wins and this section is stale.
+
+### 9.1 Navigation map
+
+```
+Splash (session restoring)
+  │
+  ▼
+RegistrationScreen ──"Lihat ladang demo"──────────────► DashboardScreen (read-only demo farm)
+  │  submit (name, district, farm name)
+  ▼
+WalkScreen  ← step ④, "never cut" ─────────────────────► (block capture loop, ≥2 blocks required)
+  │  SELESAI
+  ▼
+ElevationScreen  ← step ⑤ ───────────┐
+  │  all pairs resolved              │ derived_automatically == true
+  │  (farmer answered ≥1 pair)       ▼
+  ▼                          TerrainDerivedScreen  ← "the most impressive thing
+DashboardScreen  ◄───────────────────┘   the system does," shown once, non-blocking
+  │
+  ├─ FAB (camera) ──────────────────────────► DiagnosisScreen (push; back → Dashboard)
+  ├─ Resume card (mid-cycle) ────────────────► DiagnosisScreen
+  ├─ Advisor card "MULA DIAGNOSIS" ──────────► DiagnosisScreen
+  ├─ FAB (chat bubble) ───────► TanyaSheet (modal sheet, dismissable)
+  ├─ Header gear icon ────────► SettingsSheet (modal sheet)
+  │     └─ "Tanya" row ────────► TanyaSheet (pops Settings first)
+  │     └─ "Reset" (confirm) ──► RegistrationScreen (session cleared, _home() rebuilds)
+  ├─ Priority Action "Kenapa?" ► BlueprintSheet (modal sheet, per-recommendation)
+  └─ Terrain node hover/hold ──► BlockProfileCard (inline overlay, NOT a route)
+```
+
+**Two navigation primitives are used deliberately, not interchangeably:**
+- **Pushed routes** (`Navigator.push`/`pushReplacement`) for anything that is a *step in a sequence* the farmer walks through once (registration → walk → elevation → dashboard) or a focused task with its own back button (diagnosis capture).
+- **Modal bottom sheets** (`showModalBottomSheet`) for anything *referential* — asked from the dashboard, dismissed back to exactly where the farmer was, never leaving a page in history. Settings, Tanya, and the decision blueprint are all sheets for this reason: none of them represent moving to a different place in the app, only looking something up.
+
+The **terrain block profile is neither** — it is an inline overlay driven by pointer state inside `TerrainCard`, not a navigation event at all (§9.6).
+
+### 9.2 Screen-by-screen
+
+| Screen | File | Backend calls | Purpose |
+|---|---|---|---|
+| `RegistrationScreen` | `screens/registration_screen.dart` | `POST /users`, `POST /farms`, `GET /farms` (demo) | Setup steps ①–③: register, locate (GPS or district-centroid fallback), silently probe for a barometer. Also the demo-farm entry point for anyone not standing in a pepper garden. |
+| `WalkScreen` | `screens/walk_screen.dart` | `POST /walk-sessions`, `POST /walk-sessions/{id}/samples` (batched every 10 s), `POST /blocks` | Setup step ④. Continuously buffers GPS (+ pressure on OPTIMISED). "TANDA BLOK" freezes the trailing 5 s window; the median becomes the block centroid. Opens `_BlockCaptureSheet` (photo + optional label + optional voice + drainage) per block. |
+| `ElevationScreen` | `screens/elevation_screen.dart` | `GET /farms/{id}/elevation-questions`, `POST /farms/{id}/resolve-elevation` | Setup step ⑤. Asks "which way does the water flow?" per ambiguous pair — never "which is higher": that phrasing matches how farmers actually reason about their own land. |
+| `TerrainDerivedScreen` | `screens/terrain_derived_screen.dart` | none (renders the `resolve-elevation` response passed in) | Shown only when the barometer separated every block and the farmer answered nothing. Makes the automatic slope reconstruction visible instead of silently jumping to the dashboard behind a spinner. |
+| `DashboardScreen` | `screens/dashboard_screen.dart` | `GET /farms/{id}/dashboard`, `GET /diagnosis-cycles/current` | The hub. Composes the six components in §9.3–9.7, in the fixed order rain pulse → advisor → priority action → terrain → neighbour consent, matching PROJECT_SPEC §7. |
+| `DiagnosisScreen` | `screens/diagnosis_screen.dart` | `POST /diagnosis-cycles`, `POST /media`, `POST /observations`, `POST /agent/run` | The diagnosis cycle UI (§6): per-block capture loop with retake/override handling, then triggers arbitration. |
+| `BlueprintSheet` | `screens/blueprint_sheet.dart` | `GET /recommendations/{id}/blueprint` | See §9.5. |
+| `TanyaSheet` | `screens/tanya_sheet.dart` | `POST /advisor/ask` | See §9.6. |
+| `SettingsSheet` | `screens/settings_sheet.dart` | none directly (delegates to session/provider actions) | Tetapan: open Tanya, toggle a local rain-alert preference, sign out, reset farm (confirm dialog, long-press shortcut preserved). |
+
+### 9.3 Dashboard components — data dictionary
+
+All fields below come from a single `GET /farms/{farm_id}/dashboard` call, parsed into `DashboardModel` (`models.dart`). The dashboard is one round trip, not one call per card — a card renders `SizedBox.shrink()` when its field is null/empty rather than erroring, which is what makes the "works with zero photographs" rule (huluhilir-rules §6) hold structurally rather than by convention.
+
+| Component | Widget | Source field(s) | Renders | Purpose |
+|---|---|---|---|---|
+| **Rain Pulse** | `_RainPulseCard` | `rain_pulse: {day_label, rainfall_mm, days_away, speech_template_id}` | mm figure (large serif number), day label, "N hari lagi" countdown, speaker icon | Always present, even on a brand-new farm with no blocks and no diagnosis ever run — the one signal that needs no farmer input at all. Composed speech is re-derived from the same live numbers shown, so audio can never drift from the text beside it. |
+| **Advisor** | `_AdvisorCard` | `advisor: {urgency, reason_code, reason_ms, days_since_last_cycle, blocks_all_protected}` (nullable — card absent when null) | Olive banner, urgency badge (AKTIF/STABIL/OK), one-sentence `reason_ms`, "MULA DIAGNOSIS" CTA when `urgency` is `high`/`medium` | Answers "should I diagnose today, and why (not)". `blocks_all_protected` backs the evidence-based **"no action needed"** case — the advisor is designed to say "not yet" with a reason, not just fire on any trigger. Never blocks; a farmer can always start a diagnosis manually via the FAB regardless of this card's verdict. |
+| **Priority Action** (a.k.a. Main Action Card) | `_MainActionCard` | `top_action: RecommendationModel {recommendation_id, block_id, action_type, reason_ms, defer_cause, speech_template_id}`, resolved against `blocks[]` for the block label | Action verb (Buka parit / Sembur / Rendam / Cabut pokok / Asingkan pokok / Periksa) + block label + `reason_ms`; a terracotta "ditangguh: …" row when `defer_cause` is set; a "Kenapa?" button; a 3-language speaker menu (BM / EN / Iban) | This **is** the arbitration result from §3's L4 — the single action/time/reason the whole agent topology exists to produce. Only `actions[0]` is ever shown (§7): the product deliberately narrows five conflicting signals to one instruction, and the UI enforces that narrowing rather than listing every candidate action. |
+| **Priority Action drawer** (decision blueprint) | `BlueprintSheet` (§9.5) | `GET /recommendations/{id}/blueprint` | See §9.5 | The "thinking blueprint" requested for this card — shows the arbitration's actual derivation, not a re-narrated summary. |
+| **All Clear** | `_AllClearCard` | (rendered when `top_action` is null) | Check icon, "no action needed" copy | **No recommendation is a result, not an empty state** — the agent only arbitrates when a block is genuinely at risk, so a healthy farm legitimately produces nothing. Without this card the same state rendered as blank space, which reads as "the app broke". |
+| **Terrain Risk Model** | `_TerrainCard` → `Terrain3DView` / `Terrain3DWebView` | `terrain_nodes: [{block_id, elevation_rank, current_state}]`, `terrain_edges: [{from_block_id, to_block_id, flow_weight, barrier}]`, block labels from `blocks[]` | 3D scene (Three.js via WebView/iframe): blocks placed by `elevation_rank`, coloured by `current_state` (protected/alerted/harmed/overrun), flow edges drawn between them; "Anggaran sahaja" disclaimer | The signature visual — the spatial graph from §2's L2 spread model made tangible. Same Three.js file (`assets/terrain/terrain.html`) drives both Android (WebView + JS channel) and web (iframe + `postMessage`) builds; `TerrainCanvas` (2D) is kept in-tree as an emergency fallback if WebGL misbehaves on a demo device. |
+| **Block Profile** (terrain node overlay) | `BlockProfileCard` (`block_profile.dart`), see §9.6 | `GET /blocks/{id}/detail` on demand | See §9.6 | Drill-down from a terrain node into that block's actual state. |
+| **Resume card** | `_ResumeCard` | `GET /diagnosis-cycles/current` → `DiagnosisCycleModel {cycle_id, blocks_total, blocks_captured, status}` | "Sambung diagnosis (n/total blok)" banner above the rain pulse | Diagnosis cycles are resumable across app restarts (§6); this is what makes that fact visible instead of silently continuing in the background. |
+| **Neighbour consent gate** | `_NeighbourConsentCard` | `pending_neighbour_alerts: int` | "N pesanan jiran menunggu" row, chevron | Surfaces drafted-but-unsent neighbour alerts. `draft_alert` (§3 L4) only ever drafts; dispatch requires explicit farmer approval through this gate (huluhilir-rules §5) — the card exists specifically so "drafted, never auto-sent" has a UI a farmer can act on. |
+
+### 9.4 Diagnosis screen — data dictionary
+
+`POST /observations` is the one call this screen makes per photo, and its response shape is the reason two earlier bugs (the frozen `1/2` cycle counter, and the "stuck forever on one block" retake dead-end) are now structurally impossible rather than merely fixed:
+
+| Field | Type | Renders as | Purpose |
+|---|---|---|---|
+| `diagnosis.predicted_class` | one of the 6 classes (§3 L1) | Malay label chip (SIHAT (DAUN) / LESI PANGKAL / …) | The classifier's call for this photo. |
+| `diagnosis.confidence`, `below_threshold` | float, bool | "(keyakinan rendah — periksa sendiri)" suffix | Confidence < 0.60 is surfaced as an instruction to go look, never presented as a diagnosis (huluhilir-rules §9). |
+| `counts_as_check` | bool | done ✓ vs. retake ⚠ list icon | Whether this photo satisfied the block's requirement for the cycle — a `capture_target` mismatch does **not** count, by design. |
+| `retake_prompt`, `attempt`, `retakes_remaining` | string?, int, int | "Sila ambil semula. (cubaan 2 — 1 lagi)" | Lets the UI distinguish "try again" from "you are stuck" — without these three fields a mismatched block had no way to escalate to an override. |
+| `accepted_despite_mismatch` | bool | "· diterima selepas beberapa cubaan" | Marks a photo taken via "Guna juga" (Use anyway), the farmer-facing override once retakes are exhausted. |
+| `cycle` | nested `DiagnosisCycleModel` | drives the `(captured/total)` counter and the "run agent" button label | **The authoritative post-update cycle state**, returned directly by the observation endpoint. This is what replaced the earlier client-side re-fetch of `/diagnosis-cycles/current`, which returns `null` the instant a cycle completes (it filters on `status == in_progress` by design) and was the actual root cause of the counter freezing one short of the total. |
+
+### 9.5 Priority Action drawer — `BlueprintSheet`
+
+`GET /recommendations/{recommendation_id}/blueprint` reconstructs a recommendation's derivation **strictly from `agent_runs.tools_called`** — the log written while the decision was being made. Nothing here is an LLM re-narrating its own decision after the fact; a model asked to explain itself afterwards produces a plausible story *about* the decision, which is not the same thing as the decision, and the two diverge exactly when it matters most.
+
+| Field | Renders | Purpose |
+|---|---|---|
+| `block_label`, `action_type`, `reason_ms` | Olive header card — the outcome, shown first | Answers "what am I being asked to do" before "how was it decided" — a farmer opens this sheet already knowing the action from the card beneath it, and wants the reasoning, not a repeat of the headline. |
+| `deferral.defer_cause` (`rain_forecast` / `no_dry_window` / `reentry`) | Terracotta callout, cause-specific Malay sentence | The arbitration itself — why spraying wasn't just scheduled immediately. Shown before the step list because "why not now" is the question a farmer actually has, ahead of "what exactly did the agent do". |
+| `steps[]` — `{label, what_for, result_summary, latency_ms}` per logged tool call | Numbered, connected step list (one card per `tools_called` entry) | The literal sequence of deterministic/LLM-backed tool calls (`diagnose_leaf` → `get_weather` → `compute_spread` → `get_treatment` → `find_spray_window` → arbitration) that produced this specific recommendation. `latency_ms` is shown per step — demo evidence of real orchestration, not a canned response. |
+| `run.llm_model`, `run.trigger`, `run.status` | Small footer line | Which model/trigger produced this run, for debugging and for judges asking "is this actually calling an LLM". |
+
+An empty `steps[]` renders as "Tiada panggilan alat direkod untuk keputusan ini" — deliberately distinguished from a load failure, since a genuinely tool-free recommendation is possible and should not look broken.
+
+### 9.6 Advisor window — `TanyaSheet` ("Tanya")
+
+Free-form Q&A over retrieval (§3 L3/L4), reached from the dashboard FAB and from Settings. `POST /advisor/ask` routes to an agent whose **only** reachable tool is `retrieve_knowledge`, hard-scoped away from the authoritative rules namespace (Namespace A, §3 L3) — so no dose, product, or timing can structurally come back through this path, not merely by prompt instruction. That is why the sheet's disclaimer (`tanya.disclaimer`) can be stated as a fact about the system rather than a hope about the prompt.
+
+| Element | Source | Purpose |
+|---|---|---|
+| Suggested openers (`tanya.q1`–`q3`) | i18n, language-aware | Gives a farmer facing an empty box somewhere to start; phrased as questions a farmer would actually ask. |
+| `answer` | `POST /advisor/ask` response | Retrieved-and-explained answer, rendered as a serif paragraph with a speaker button (reuses the same `speak()` path as the priority action). |
+| History (`_QA` list) | client-side only, not persisted | Lets a farmer scroll back through a session's questions; cleared on sheet dismissal — this is a lookup tool, not a chat log the system remembers. |
+
+**Distinction from the Priority Action drawer:** the Advisor window explains *disease/treatment knowledge in general* (retrieval, Namespace B); the Blueprint sheet explains *how one specific recommendation was derived* (a tool-call log). They answer different questions — "why does rain-fast matter" vs. "why was I told to wait until Thursday" — and are intentionally separate surfaces rather than one merged "help" panel.
+
+### 9.7 Block Profile — terrain drill-down
+
+`BlockProfileCard` (`block_profile.dart`) is what a terrain node expands into. It is **not a route** — it is content injected into `Terrain3DView`/`Terrain3DWebView` via a `profileBuilder` callback, positioned by the 3D scene itself, and its visibility is driven entirely by pointer state coming out of `terrain.html`.
+
+**Interaction model (current — replaced click+✕ close):** hover to peek on desktop/mouse input; press-and-hold to peek on touch, release to close. There is no persistent open/close toggle state in Flutter — `terrain.html`'s `showBlock()`/`hideBlock()` own it, and post messages (`FlutterBridge` on Android, `window.postMessage` on web) drive the callback. In peek mode (`onClose == null`) the card is `IgnorePointer`-wrapped and the block's voice label autoplays, since nothing on the card can be tapped mid-hover anyway.
+
+| Field (from `GET /blocks/{id}/detail`) | Renders | Purpose |
+|---|---|---|
+| `header_image_uri` | Background photo behind a state-coloured scrim | The block's own capture photo (or latest observation photo) — what makes a block recognisable to the farmer who marked it, not just a coloured dot. |
+| `block.label`, `elevation_rank`, `current_state` | Header title line | Identifies which block this is and its current status badge. |
+| `voice_label_uri` | Play button (pinned mode) / autoplay (peek mode) | The farmer's own recording of the block's name, played back — never transcribed (§0 / huluhilir-rules §1). |
+| `baro_rel_m` | "Ketinggian relatif: N m" | Relative elevation reading, when the OPTIMISED tier captured one. |
+| `observations[]` — `{image_uri, predicted_class, confidence, below_threshold, captured_at}` | Scrollable history list, thumbnail + class label + date | The block's diagnosis history — every accepted photo and what it was classified as, low-confidence calls flagged explicitly. |
+| `action` (passed in from the dashboard's `top_action`, only if it targets this block) | Cream callout with `reason_ms` | Surfaces the live recommendation for this specific block inline, without needing to leave the terrain view. |
+
+**Known gap:** the block detail sheet described in the original PROJECT_SPEC §7 ("timeline with rainfall overlay · treatment log with rain-fast-window waste flag") is only partially built — the observation history exists; a rainfall-overlaid timeline and a treatment-log waste flag do not, because no endpoint currently returns treatment-application history joined against rainfall. Flagged here rather than left implied by omission.
