@@ -1005,3 +1005,43 @@ The scene now announces on **both** transports via the shared `post()` helper: `
 Backend `huluhilir-api-00041-5kh`. Served `main.dart.js` hashes identical to the local build (`e6f4c490…`). `terrain.html` on the CDN contains `post('ready')` and the web bundle listens for `huluhilir-ready`. APK carries `playVoiceLabel`, `TIADA TINDAKAN PERLU` and `Guna juga`.
 
 ---
+
+## [Session handoff] Status at branch-out point — read this first if you're picking this up cold
+
+Written at the point `master` sits at commit `00acefb`, clean tree, nothing unpushed. The next planned step is **checking out a new branch for refinement work** — this entry exists so that branch starts from an accurate picture rather than from memory.
+
+### What WORKS — verified against the live deployment, not assumed
+
+- **Cloud Run backend** — revision `huluhilir-api-00041-5kh`, `/health/ready` returns `ok: true` against Postgres (Cloud SQL), 6 treatment rules seeded. `CLASSIFIER_BACKEND=gemini`, `VISION_MODEL=vertex_ai/gemini-2.5-flash`, agent chat model also `vertex_ai/gemini-2.5-flash`.
+- **Firebase Hosting** — landing page (`/`) and Flutter web app (`/app/`) both return 200. Served `main.dart.js` hash-matches the local build at last check.
+- **Diagnosis cycle counting** — fixed and verified on the exact reported repro (block A/collar → 1/2, block B/leaf → 2/2 complete), reading the authoritative count from the `POST /observations` response rather than the racy `GET /diagnosis-cycles/current` (which returns null on completion by design).
+- **Terrain 3D first paint on web** — fixed; scene now announces readiness on both `FlutterBridge` and `postMessage`, so the host isn't blind-retrying into a missed window.
+- **Gemini vision classifier (`leaf-classifier`)** — live, using the structured per-class cue prompt (HSV/texture/boundary/scale/location + explicit "discriminates from" lines) supplied directly by the team. Confirmed correctly discriminating on at least one real case class-by-class in manual testing.
+- **RAG advisor (`advisor-qa`)** — 28 knowledge docs seeded (pathogen mechanism, 5 disease stages, symptom discrimination, management rationale, catchment dynamics, salvage triage), all `namespace=advisory`, scripted-checked to carry no dose/product/timing (rule §2). Verified live: staged disease-progression question answered correctly from retrieval.
+- **Decision blueprint** — `GET /recommendations/{id}/blueprint` reconstructs a recommendation from `agent_runs.tools_called` (what was actually logged), not from a re-narration. Wired into the priority action card.
+- **EN ⇄ BM toggle** — 115 keys, scripted parity check (both tables carry the same keyset). Covers dashboard, diagnosis, walk, registration, elevation, settings, Tanya, block profile, tier banner, derived-terrain. Verified present in both the served web bundle and the APK's compiled `libapp.so`.
+- **Iban speech on the priority action** — machine-translated via the same LLM, honestly disclosed (`translation_source: "machine"`, `voice_is_iban: false` since no provider has an Iban voice), Iban text shown on screen beside the Malay rather than replacing it.
+- **Hover/hold-to-peek terrain interaction** — replaced tap+X with hover (mouse) / press-and-hold (touch), auto-closes on pointer-out. The old X bug (unbounded-width `Positioned`, not a duplicate button) is gone with the whole interaction model it lived in.
+- **Backend test suite** — 22/22 passing (`pytest tests/ --ignore=tests/test_agent_arbitration.py`). `flutter analyze` — 0 new issues, same 4 pre-existing `info`-level items.
+- **iOS project scaffold** — exists with the required `NSMotionUsageDescription` etc., but **has never been built** (no Mac/Xcode available this session). Treat as untested, not working.
+
+### What DOES NOT WORK, or is unverified — be honest about these on the new branch
+
+- **`test_agent_arbitration.py` (the live-LLM test) is excluded from the routine run.** It needs a real Ollama/Vertex round trip and was flaky under local load during this session (CUDA OOM once, 600s timeout once) — never confirmed green in isolation this session. Don't assume it passes; run it on its own before relying on it.
+- **Classifier accuracy is NOT rigorously measured.** `backend/scripts/eval_classifier.py` exists (precision/recall/F1 per class, confusion matrix) but has **not been run against a real labelled photo set** — only spot-checked manually against a handful of hand-picked images. Do not repeat the earlier mistake of this session: an early "6/6 classes produced" check turned out to be measuring *coverage*, not *accuracy*, and had silently mixed the Gemini and CNN backends together (fixed by exposing `model_version` on observations — use it). Coverage ≠ accuracy. Get real labelled photos before trusting a number.
+- **CNN (ONNX) backend is confirmed BROKEN as a fallback**, not just unideal: solid-black and solid-brown test images were classified `healthy_leaf` at 0.78–0.91 confidence. It's still wired as the fallback path if the Gemini call throws, which means a Vertex outage silently degrades diagnosis quality rather than failing loudly. Worth deciding on the new branch whether that fallback should exist at all, or should fail closed instead.
+- **iOS is unbuilt.** The barometer-on-iOS behavior described earlier in this project (native app should read `CMAltimeter`; the *browser* path on iPhone correctly reports "unavailable" because no browser exposes it) is reasoned from code, not confirmed on-device via a compiled iOS build.
+- **`CLASSIFIER_BACKEND` / `VISION_MODEL` env vars are deploy-script-managed, not GCP-persisted independently of the script.** `deploy-cloud.sh` sets them explicitly on every deploy specifically because an earlier session bug showed `--set-env-vars` silently drops anything not listed. If a future session edits `deploy-cloud.sh` without preserving those two lines, the classifier will silently revert to a state that was already shown broken (see above). Grep for `CLASSIFIER_BACKEND` in `deploy-cloud.sh` before touching that file.
+- **No Caveman Cloud / LLM spend observability is wired in this repo at all** (checked directly: zero references to any gateway header or SDK). Five distinct LLM call sites exist unlabeled and un-tracked: the root arbitration agent, the advisor Q&A agent, the Gemini leaf classifier, the Iban speech translator, and the offline eval script. If cost visibility becomes a priority, `caveman-setup` needs to run before any workflow labeling is meaningful.
+- **Landing page (`landing/`) content, including the `0.934` classifier accuracy figure**, is scoped as "measured on the CNN's own held-out set, not validated in the field" — keep that framing if the classifier backend or its accuracy claims change; don't let the landing copy drift from what's actually true of whichever backend is live.
+- **No automated CI** — every verification in this project (tests, `flutter analyze`, live smoke curls, hash comparisons) was run by hand each session. There is no GitHub Actions or equivalent gate. A new branch's changes will not be checked automatically before merge.
+
+### Where things physically are (for the next session's orientation)
+
+- Backend: `backend/app/` (FastAPI + SQLAlchemy async + ADK agent under `backend/app/agent/`)
+- Flutter app: `flutter_app/lib/` — i18n table at `lib/i18n.dart`, terrain scene at `assets/terrain/terrain.html` (classic Three.js, not ES modules — see earlier entries for why), web/Android split via `kIsWeb` throughout
+- Landing page: `landing/` — separate Vite/React app, deployed alongside the Flutter web build under Firebase Hosting (`/` vs `/app/`)
+- Deploy scripts: `deploy-cloud.sh` (Cloud Run), `firebase.json` + `firebase deploy` (Hosting) — see README.md for the exact commands and how to take either surface down
+- Eval script: `backend/scripts/eval_classifier.py` — unrun against real data, see "does not work" above
+
+---

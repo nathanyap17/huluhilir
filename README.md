@@ -111,6 +111,75 @@ Open the app and tap **"Lihat ladang demo"** to reach the dashboard without walk
 Cloud Run (`asia-southeast1`) · Vertex AI `gemini-2.5-flash` · Cloud SQL Postgres · Google Cloud TTS · Firebase Hosting.
 Authentication throughout is the service's own service account — there is no API key in this repository or in its configuration.
 
+### Turning Cloud Run and Firebase Hosting on / off
+
+These commands act on the GCP project `sfws-aicc-workspace-1`. They require
+`gcloud` and `firebase-tools` authenticated against an account with access to
+that project — see [Credentials](#credentials--access) below for how access
+is actually granted (not by sharing a secret).
+
+**Cloud Run (the backend API)**
+
+```bash
+# Stop serving traffic without deleting the service (min-instances -> 0,
+# scales to zero; cheapest "off" that is still one command away from "on").
+gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
+  --region asia-southeast1 --min-instances 0 --max-instances 0
+
+# Resume serving.
+gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
+  --region asia-southeast1 --min-instances 1 --max-instances 10
+
+# Full teardown (irreversible without a redeploy) -- only if the service
+# should stop existing, not just stop serving:
+gcloud run services delete huluhilir-api --project sfws-aicc-workspace-1 \
+  --region asia-southeast1
+
+# Redeploy from source at any time:
+bash deploy-cloud.sh
+```
+
+`deploy-cloud.sh` re-sets `CLASSIFIER_BACKEND` and `VISION_MODEL` explicitly
+on every deploy — see `docs/BUILD_LOG.md` "Session handoff" for why those two
+lines must never be dropped from that script.
+
+**Firebase Hosting (landing page + Flutter web app)**
+
+```bash
+# Take the site down (site keeps existing; visitors get Firebase's default
+# "site not found" page until the next deploy):
+firebase hosting:disable --project sfws-aicc-workspace-1
+
+# Bring it back -- rebuilds both the landing page and the Flutter web app,
+# then redeploys:
+bash build-site.sh
+firebase deploy --only hosting --project sfws-aicc-workspace-1
+```
+
+There is no separate "pause" for Hosting beyond `hosting:disable` — it is a
+static file server, so the meaningful on/off is deploy vs. disable.
+
+### Credentials & access
+
+This repository and this README never contain live credentials — not a
+service account key, not an API token, not a `.env` file. Access to
+`sfws-aicc-workspace-1` is granted per person, the same way for anyone who
+needs to deploy:
+
+```bash
+# Grant a teammate's own Google account deploy rights (they authenticate as
+# themselves via `gcloud auth login` -- nothing is copied or shared):
+gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
+  --member="user:their-email@example.com" --role="roles/run.admin"
+gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
+  --member="user:their-email@example.com" --role="roles/firebasehosting.admin"
+```
+
+or invite them as a Firebase project member from the
+[Firebase console](https://console.firebase.google.com/project/sfws-aicc-workspace-1/settings/iam).
+Whoever already has access runs `gcloud auth login` / `firebase login` locally
+and the CLIs above work directly — there is no separate secret to distribute.
+
 ---
 
 ## Running it
