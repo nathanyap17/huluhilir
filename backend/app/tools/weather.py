@@ -43,6 +43,37 @@ def estimate_rainfall_mm(forecast_text: str) -> tuple[float, float]:
     return 0.0, 0.05  # unrecognised text -> assume dry rather than over-warn
 
 
+def _reanchor_dates_to_today(rows: list[dict]) -> list[dict]:
+    """The cached fallback (seed/weather_cache_kuching.json) is a ONE-TIME
+    static snapshot, captured once and never refreshed. Its dates are
+    absolute, so the instant "today" moves past its 7-day window, EVERY row
+    lands in the past and `forecast_7d` silently comes back empty forever
+    after -- not a window-size bug, not a provider bug, a frozen-snapshot
+    bug: the classification logic below is correct, but has nothing to
+    classify as "future" once the whole cache is history.
+
+    Fix: re-anchor the cache's dates around today, symmetrically, each time
+    it's actually used as a fallback -- the 7 cached days keep their
+    relative order and story (whatever rain pattern was captured), but the
+    middle day always lands on "today", so roughly half fall before it
+    (rainfall_7d) and half after (forecast_7d) no matter how long ago the
+    snapshot was taken. This never touches live API data -- only the
+    cached path, which by definition has no real "today" of its own.
+    """
+    unique_dates = sorted({r["date"] for r in rows})
+    if not unique_dates:
+        return rows
+    pivot = unique_dates[len(unique_dates) // 2]
+    shift = date.today() - date.fromisoformat(pivot)
+
+    reanchored = []
+    for row in rows:
+        row = dict(row)
+        row["date"] = (date.fromisoformat(row["date"]) + shift).isoformat()
+        reanchored.append(row)
+    return reanchored
+
+
 def _rows_from_data_gov_my_payload(payload, station_id: str, is_cached_fallback: bool) -> GetWeatherResult:
     """The live API returns a bare JSON list; the PowerShell-captured cache
     asset (sandbox/cached_weather_kuching.json, EXP-9) wraps it as
@@ -55,6 +86,8 @@ def _rows_from_data_gov_my_payload(payload, station_id: str, is_cached_fallback:
 
     all_rows = payload if isinstance(payload, list) else payload.get("value", [])
     rows = [r for r in all_rows if r["location"]["location_id"] == station_id]
+    if is_cached_fallback:
+        rows = _reanchor_dates_to_today(rows)
     for row in rows:
         row_date = date.fromisoformat(row["date"])
         mm, probability = estimate_rainfall_mm(row.get("summary_forecast", row.get("afternoon_forecast", "")))

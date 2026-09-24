@@ -1,8 +1,8 @@
-# DATA_MODEL.md — HuluHilir
+# DATA_MODEL.md — PepperDex (formerly HuluHilir)
 
-> SQLAlchemy 2.0 async. **SQLite locally; Cloud SQL (PostgreSQL) if the cloud path ships** — a connection-string change only, no schema change. Conventions:
-> IDs are **ULIDs** (client-generated, offline-safe) · timestamps ISO 8601 `Asia/Kuching`
-> **SQLite has no array type** — use `JSON` columns (portable to PostgreSQL `JSONB`) · `?` = nullable
+> ⚠️ **Migration status:** this schema was built and validated in v1 (Flutter era) and is unchanged in its core — the v2 rebuild is frontend + agent-layer, not a data model rewrite. **🔄 v2** marks the three genuinely new tables and two new computed (non-persisted) fields. Everything else below is the original, already-working v1 schema.
+>
+> SQLAlchemy 2.0 async. **SQLite locally; Cloud SQL (PostgreSQL) if the cloud path ships** — a connection-string change only, no schema change. IDs are **ULIDs** · timestamps ISO 8601 `Asia/Kuching` · **SQLite has no array type** — use `JSON` columns · `?` = nullable
 
 ---
 
@@ -23,6 +23,7 @@
 | `KnowledgeNamespace` | `authoritative` · `advisory` · `local` |
 | `CycleStatus` | `in_progress` · `complete` · `abandoned` |
 | `AdvisorUrgency` | `high` · `medium` · `low` · `none` |
+| `CalendarProvider` 🔄 v2 | `google_calendar` |
 
 ---
 
@@ -111,6 +112,8 @@
 | `external_owner_name` | str(80) | ? | **PII** |
 | `external_owner_phone` | str(20) | ? | **PII** |
 
+**🔄 v2 — computed, not persisted, added to API responses only:** `x_rot_m`, `y_rot_m` (rotated local-metre coordinates for the terrain canvas — recomputed at response time from `centroid_lat/lon` + `flow_edges`, never stored, so layout can't go stale after a graph edit). Not new columns on this table.
+
 **Constraints**
 - `elevation_rank` **unique per farm** — ties break the graph
 - If `is_external = true`: store **only** `current_state`. No diagnosis, photo, or treatment history.
@@ -122,7 +125,7 @@
 | `edge_id` | str(26) | | **PK** |
 | `farm_id` | str(26) | | FK |
 | `from_block_id` / `to_block_id` | str(26) | | Upslope → downslope |
-| `horizontal_dist_m` | float | | Haversine |
+| `horizontal_dist_m` | float | | Haversine — **v2 now also drives canvas layout, not just spread weight** |
 | `elevation_drop_m` | float | ? | OPTIMISED only |
 | `slope_ratio` | float | ? | Δh ÷ distance |
 | `flow_weight` | float | | 0–1 |
@@ -147,13 +150,9 @@
 | `delta_h_m` | float | ? | Triggered gate if < 2.0 |
 | `logged_at` | datetime | | |
 
-> Exists to prove "farmer is authoritative" is implemented, not merely asserted.
-
 ---
 
 ## 8 · `diagnosis_cycles`
-
-A diagnosis is an **event covering all blocks**, not a per-photo action.
 
 | Field | Type | ? | Notes |
 |---|---|---|---|
@@ -166,8 +165,6 @@ A diagnosis is an **event covering all blocks**, not a per-photo action.
 | `blocks_total` / `blocks_captured` | int | | Resume progress |
 | `status` | `CycleStatus` | | |
 | `run_id` | str(26) | ? | FK → `agent_runs` |
-
-> **Resumable.** `in_progress` survives app close; UI offers *"Sambung diagnosis (4/6 blok)"*.
 
 ## 9 · `observations`
 
@@ -192,7 +189,7 @@ A diagnosis is an **event covering all blocks**, not a per-photo action.
 | `cycle_id` | str(26) | ? | FK |
 | `predicted_class` | `DiseaseClass` | | 6-class |
 | `confidence` | float | | 0–1 |
-| `all_scores` | JSON | | Full softmax — needed for confusion analysis |
+| `all_scores` | JSON | | Full softmax |
 | `second_class` | `DiseaseClass` | ? | |
 | `below_threshold` | bool | | `< 0.60` → advise inspection |
 | `model_version` | str(20) | | **Required for auditability** |
@@ -201,8 +198,6 @@ A diagnosis is an **event covering all blocks**, not a per-photo action.
 ---
 
 ## 11 · `risk_assessments`
-
-One row **per block per run** — a time series, not current state.
 
 | Field | Type | ? | Notes |
 |---|---|---|---|
@@ -221,8 +216,6 @@ One row **per block per run** — a time series, not current state.
 | `is_estimate` | bool | | **Always true** |
 | `computed_at` | datetime | | |
 
-> Snapshotting rainfall is essential — without it you cannot later explain *why* the model said what it said.
-
 ---
 
 ## 12 · `treatment_options` — Namespace A, seeded
@@ -240,7 +233,7 @@ One row **per block per run** — a time series, not current state.
 | **`source_ref`** | str(200) | | **Mandatory citation** |
 | `source_url` | str(255) | ? | |
 
-> **Hard rule:** the agent may never output a treatment absent from this table.
+> **Hard rule:** the agent — and the v2 Overrun Council — may never output a treatment absent from this table.
 
 ## 13 · `treatment_applications`
 
@@ -253,8 +246,6 @@ One row **per block per run** — a time series, not current state.
 | `recommendation_id` | str(26) | ? | FK |
 | **`rain_within_rainfast`** | bool | ? | **Outcome signal — computed after** |
 | `rainfall_after_mm` | float | ? | |
-
-> Closes the learning loop; powers the *"terbazir"* (wasted) indicator.
 
 ---
 
@@ -272,6 +263,10 @@ One row **per block per run** — a time series, not current state.
 | `embedding` | JSON | | Float array |
 | `citation` | str(255) | | **Mandatory** |
 
+## 14a · `knowledge_docs_fts` 🔄 v2 *(search index, not a new logical entity)*
+
+SQLite FTS5 virtual table mirroring `knowledge_docs.content`, for the lexical half of the hybrid search described in §L3. No new source of truth — an index only.
+
 ---
 
 ## 15 · `agent_runs`
@@ -283,7 +278,7 @@ One row **per block per run** — a time series, not current state.
 | `trigger` | str(20) | | `observation` · `scheduled` · `manual` · `setup_validation` |
 | `cycle_id` | str(26) | ? | FK |
 | **`tools_called`** | JSON | | `[{name, args, latency_ms, result_summary}]` |
-| `subagent_invoked` | str(40) | ? | |
+| `subagent_invoked` | str(40) | ? | 🔄 v2: now may also be `overrun_council` |
 | `llm_model` | str(40) | | |
 | `token_count` | int | ? | |
 | `started_at` / `completed_at` | datetime | /? | |
@@ -308,7 +303,7 @@ One row **per block per run** — a time series, not current state.
 | **`defer_cause`** | str(40) | ? | `rainfast` · `spread_priority` · `resource` |
 | `confidence_note` | str(120) | ? | |
 
-> `deferred_from` + `defer_cause` **are the arbitration record** — the evidence the agent chose between conflicting model outputs.
+> `deferred_from` + `defer_cause` **are the arbitration record.**
 
 ## 17 · `alerts`
 
@@ -341,9 +336,8 @@ One row **per block per run** — a time series, not current state.
 | `days_since_last_cycle` | int | | |
 | `rain_since_last_cycle_mm` | float | | |
 | `blocks_all_protected` | bool | | |
+| **`related_recommendation_id`** | str(26) | ? | 🔄 v2 — links this verdict to the Home screen's current Priority Action card |
 | `computed_at` | datetime | | |
-
-> The `protected_stable` verdict is the common case: *"All blocks healthy 6 days ago, only 8 mm rain since — no diagnosis needed for ~4 days."* An AI that tells you **not** to work today, with evidence.
 
 ---
 
@@ -369,8 +363,6 @@ One row **per block per run** — a time series, not current state.
 | `text_ms` / `text_iba` | str(60) | | |
 | `verified` | bool | | |
 
-> Numbers, days and action verbs are a **finite set** — pre-translate them all. This is what makes slot-filled speech dynamic without hallucinating Iban.
-
 ## 21 · `audio_cache` *(optimised tier only)*
 
 | Field | Type | ? | Notes |
@@ -379,39 +371,47 @@ One row **per block per run** — a time series, not current state.
 | `template_id` | str(30) | | FK |
 | `language` | `Language` | | |
 | `slots_json` | JSON | | Rendered values |
-| `audio_path` | str(255) | | File on volume (not BLOB — keeps DB small) |
+| `audio_path` | str(255) | | File on volume |
 | `duration_ms` | int | | |
 | `seed` | int | | **Reproducibility** |
 | `generated_at` | datetime | | |
-
-> Synthesis costs 1–3 s; cached playback is instant. **Pre-warm before the pitch.**
 
 ---
 
 ## 22 · `weather_observations` / `weather_forecasts`
 
-**Observations** — PK `(station_id, observed_date)`
+**Observations** — PK `(station_id, observed_date)`: `rainfall_mm`, `source`, `is_cached_fallback` (demo insurance).
 
-| Field | Type | Notes |
-|---|---|---|
-| `rainfall_mm` | float | |
-| `source` | str(30) | `did_sarawak` · `data_gov_my` |
-| `is_cached_fallback` | bool | **True when API unavailable — demo insurance** |
-
-**Forecasts** — PK `(station_id, forecast_date, issued_at)`
-
-| Field | Type | Notes |
-|---|---|---|
-| `rainfall_mm` | float | |
-| `probability` | float | |
-
-> `issued_at` in the key preserves forecast history — needed to explain a past recommendation.
+**Forecasts** — PK `(station_id, forecast_date, issued_at)`: `rainfall_mm`, `probability`. `issued_at` in the key preserves forecast history.
 
 ---
 
-## Phone-side (sqflite outbox)
+## 23 · `calendar_sync_grants` 🔄 v2
 
-**Not a full mirror.** Only what is needed for offline capture.
+| Field | Type | ? | Notes |
+|---|---|---|---|
+| `grant_id` | str(26) | | **PK** |
+| `farm_id` | str(26) | | FK |
+| `provider` | `CalendarProvider` | | `google_calendar` for v2 |
+| `granted_at` | datetime | | |
+| `revoked_at` | datetime | ? | Check before every future write |
+
+## 24 · `council_debates` 🔄 v2
+
+| Field | Type | ? | Notes |
+|---|---|---|---|
+| `debate_id` | str(26) | | **PK** |
+| `run_id` | str(26) | | FK → `agent_runs` |
+| `block_ids_considered` | JSON | | Overrun set |
+| `transcript` | JSON | | Each sub-agent's argument — demo evidence |
+| `ranked_output` | JSON | | array of `{block_id, rank, rationale_ms}` — deliberately dose-less |
+| `created_at` | datetime | | |
+
+---
+
+## Phone-side (Expo SQLite outbox) 🔄 v2 — was `sqflite` in v1, same purpose
+
+**Not a full mirror.** Only what's needed for offline capture.
 
 | Table | Purpose |
 |---|---|
@@ -429,6 +429,24 @@ One row **per block per run** — a time series, not current state.
 | Neighbour data | Farmer-entered only. **Never scraped or inferred** |
 | External blocks | **Risk band only.** No diagnosis, photo, or treatment history |
 | Alerts | Never dispatched without `approved_by_farmer = true` |
-| Images | Retained for model improvement **only with consent flag** |
-| Location | Farm centroid at district precision for analytics |
-| **Land boundaries** | **Never recorded.** Only `elevation_rank` ordering |
+| Calendar sync | Never dispatched without a `calendar_sync_grants` row with no `revoked_at` |
+| **Land boundaries** | **Never recorded.** Only `elevation_rank` ordering + proportional canvas spacing (v2) — neither is a georeferenced map |
+
+
+---
+
+## 🔄 v2 additions -- 2026-09-24
+
+### `farm_restore_codes` (new table)
+
+| Column | Type | Notes |
+|---|---|---|
+| `farm_id` | ULID, PK, FK `farms` | One code per farm; the shared demo farm never gets one |
+| `code` | `String(16)`, unique | `XXX-XXX-XXX` from an unambiguous alphabet (no 0/O/1/I/L). Rotatable (`POST /farms/{id}/restore-code/rotate`) |
+| `created_at` | timestamp | |
+
+Why: there are no accounts -- a phone's saved `farm_id` is its only link to a farm. `POST /restore {code}` re-attaches a new or reset phone; Google Calendar ownership follows because it is keyed on `farm_id`.
+
+### Timestamps -- one clock
+
+All timestamp columns use `KuchingDateTime` (`app/models/base.py`): aware inputs are converted to Asia/Kuching, naive inputs are taken as Kuching, reads are always aware Kuching. Before this, SQLite dropped the zone, so phone-sent UTC (`toISOString()`) and server `now_kuching()` values sat 8 h apart in the same tables. Local rows written before the fix were corrected (backup `backend/huluhilir.db.bak-2026-09-24-tz`); Cloud SQL (Postgres `timestamptz`) always stored the right instant.

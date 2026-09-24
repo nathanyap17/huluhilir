@@ -1,7 +1,7 @@
 {
   "_provenance_note": "BM text drafted during prep for MVP. Iban translations pending native-speaker review (WORKSPACE_SETUP.md item 0.8 / EXP-12) -- text_iba left null and verified=false until Abraham confirms. Never ship an unverified Iban string as if it were checked.",
   "templates": [
-    {"template_id": "setup_welcome", "language": "ms", "category": "setup_prompt", "text_template": "Selamat datang ke HuluHilir. Mari kita sediakan ladang anda.", "slots": [], "audio_clip_uri": "audio/ms/setup_welcome.wav", "translated_by": null, "verified": false},
+    {"template_id": "setup_welcome", "language": "ms", "category": "setup_prompt", "text_template": "Selamat datang ke PepperDex. Mari kita sediakan ladang anda.", "slots": [], "audio_clip_uri": "audio/ms/setup_welcome.wav", "translated_by": null, "verified": false},
     {"template_id": "setup_gps_request", "language": "ms", "category": "setup_prompt", "text_template": "Sila benarkan akses lokasi supaya kami dapat cari stesen cuaca terdekat.", "slots": [], "audio_clip_uri": "audio/ms/setup_gps_request.wav", "translated_by": null, "verified": false},
     {"template_id": "setup_walk_start", "language": "ms", "category": "setup_prompt", "text_template": "Sekarang, jalan ke setiap blok lada anda. Tekan butang apabila anda sampai.", "slots": [], "audio_clip_uri": "audio/ms/setup_walk_start.wav", "translated_by": null, "verified": false},
     {"template_id": "setup_block_capture_prompt", "language": "ms", "category": "setup_prompt", "text_template": "Ambil gambar blok ini, beri nama, dan rekod suara jika mahu.", "slots": [], "audio_clip_uri": "audio/ms/setup_block_capture_prompt.wav", "translated_by": null, "verified": false},

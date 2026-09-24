@@ -120,6 +120,7 @@ class AgentRunTrigger(str, Enum):
 
 
 class AgentRunStatus(str, Enum):
+    running = "running"  # background run still in flight (POST /agent/run background)
     ok = "ok"
     partial = "partial"
     failed = "failed"
@@ -134,3 +135,10 @@ class DeferCause(str, Enum):
 class WeatherSource(str, Enum):
     did_sarawak = "did_sarawak"
     data_gov_my = "data_gov_my"
+
+
+class CalendarProvider(str, Enum):
+    """🔄 v2. Fixed for v2 -- Google Calendar MCP is a later stretch
+    (docs/PROJECT_SPEC.md §9.15)."""
+
+    device_calendar = "device_calendar"

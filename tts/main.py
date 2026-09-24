@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoTokenizer, VitsModel
 
-app = FastAPI(title="HuluHilir TTS")
+app = FastAPI(title="PepperDex TTS")
 
 MODEL_IDS = {
     "iba": "facebook/mms-tts-iba",

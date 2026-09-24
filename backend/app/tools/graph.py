@@ -4,7 +4,7 @@ Turns a completed walk (block positions + either farmer water-direction
 answers or barometer readings) into `elevation_rank`s and the acyclic
 `flow_edges` set that L2's compute_spread traverses.
 
-huluhilir-rules skill §3 is enforced structurally here: the farmer's answer
+pepperdex-rules skill §3 is enforced structurally here: the farmer's answer
 ALWAYS wins over any sensor, and every disagreement is written to
 `elevation_conflicts` with `resolution="farmer"` rather than silently
 resolved. Nothing in this module can auto-override a farmer.
@@ -93,7 +93,7 @@ def resolve_elevation_ranks(
                     "block_b_id": block_b,
                     "farmer_says": answer,
                     "barometer_says": baro_says,
-                    "resolution": "farmer",  # ALWAYS -- huluhilir-rules §3
+                    "resolution": "farmer",  # ALWAYS -- pepperdex-rules §3
                     "delta_h_m": abs(delta_h),
                 })
 

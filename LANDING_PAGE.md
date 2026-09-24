@@ -1,146 +1,200 @@
-# HuluHilir: AI Early Warning System for Sarawak Black Pepper
+# PepperDex Sarawak: AI Early Warning System for Sarawak Black Pepper
+> **Header asset:** `pepperdex-workspace\pitch-and-design\PepperDex_Logo.png` — replaces the previous wordmark everywhere on this page, including the hero banner.
+>
+> **Content status (team note, not rendered):** updated 2026-09-24 to match the v2 app as built (APK v13). On-device verification of v13 is still pending; items marked ⚠ have not yet been confirmed on a phone. Anything not built is labelled **Roadmap** — never present it as a working feature.
+
 *“Dari hulu ke hilir — sebelum penyakit sampai” (From upstream to downstream — before the disease arrives)* [1]
+
+**Shortcuts** (see §8): GitHub repository · API documentation · Demo video · Download the Android app (QR)
 
 ---
 
 ## 1. Project Problem Statement: The Sarawak Pepper Crisis
 
-Sarawak is the undisputed heart of Malaysia’s pepper industry, accounting for **over 98% of the nation’s pepper production** [2] across **36,682 registered smallholder farms** [2]. Because black pepper vines are highly sensitive to waterlogged soil, farmers in this undulating region deliberately plant their crops on **steep hill slopes** to ensure natural drainage [4]. However, this specific terrain has created an extreme systemic vulnerability to **Phytophthora foot rot** (caused by the pathogen *P. capsici*), the crop's most destructive disease [2]. 
+Sarawak is the undisputed heart of Malaysia’s pepper industry, accounting for **over 98% of the nation’s pepper production** [2] across **36,682 registered smallholder farms** [2]. Because black pepper vines are highly sensitive to waterlogged soil, farmers in this undulating region deliberately plant their crops on **steep hill slopes** to ensure natural drainage [4]. However, this specific terrain has created an extreme systemic vulnerability to **Phytophthora foot rot** (caused by the pathogen *P. capsici*), the crop's most destructive disease [2].
 
-The pathogen is soil-borne and water-driven; because of gravity, **the deliberate downhill runoff of water becomes a literal highway for the disease** [2, 4]. When an outbreak strikes, it causes **over 30% vine mortality and crop loss** [2], resulting in a devastating financial blow of **USD 902 per hectare**—effectively wiping out **56% of a smallholder’s annual net returns** [2]. 
+The pathogen is soil-borne and water-driven; because of gravity, **the deliberate downhill runoff of water becomes a literal highway for the disease** [2, 4]. When an outbreak strikes, it causes **over 30% vine mortality and crop loss** [2], resulting in a devastating financial blow of **USD 902 per hectare**—effectively wiping out **56% of a smallholder’s annual net returns** [2].
 
-The fundamental issue is that Phytophthora foot rot is **"a catchment-scale disease, fought with single-plant tools"** [3]. Because the pathogen spreads via downhill water flow, an infection on an upslope plot is essentially a scheduled arrival on the plots below [2]. Despite this highly predictable, terrain-linked transmission path, existing agricultural tools only evaluate individual plants or single farms in isolation [3]. This technical gap leaves rural growers completely exposed to **three compounding failures**:
+The fundamental issue is that Phytophthora foot rot is **"a catchment-scale disease, fought with single-plant tools"** [3]. Because the pathogen spreads via downhill water flow, an infection on an upslope plot is essentially a scheduled arrival on the plots below [2]. Despite this highly predictable, terrain-linked transmission path, existing agricultural tools only evaluate individual plants or single farms in isolation [3]. This technical gap leaves rural growers exposed to **three compounding failures**:
 
 *   **Late-Stage Detection:** The pathogen attacks the roots and collar first [3]. By the time visible symptoms like foliar yellowing or wilting appear on the leaves, the vine is already lost [3], and rural growers have limited access to extension advice [3].
-*   **Catchment Blindness:** Because the disease is soil-borne and water-driven, transmission crosses property boundaries [3]. Currently, farmers have zero visibility beyond their own land; they have no way of knowing if an upslope neighbour’s crop is infected or if contaminated runoff is headed straight to wipe out their block next [3]. 
-*   **Fungicide Guesswork & Wasted Capital:** Contact fungicides are effective, but they wash off easily in heavy tropical rain [3]. Because farmers cannot accurately time their applications around rainfall windows, spraying a crop even two days before a major downpour washes the expensive chemical directly into the soil, wasting precious capital [3].
+*   **Catchment Blindness:** Because the disease is soil-borne and water-driven, transmission crosses property boundaries [3]. Farmers have no visibility beyond their own land; they cannot tell whether an upslope crop is infected or whether contaminated runoff is headed for their block next [3].
+*   **Fungicide Guesswork & Wasted Capital:** Contact fungicides are effective, but they wash off easily in heavy tropical rain [3]. Spraying even two days before a major downpour washes the expensive chemical into the soil [3].
 
-Traditional agricultural technologies fail because they are designed for flat-land plantation agriculture and completely ignore terrain topography [4]. In Sarawak, **"water, not proximity, determines exposure."** [12, 37] Without a terrain-aware system, smallholders are left fighting a collective watershed threat in complete isolation [4].
+Traditional agricultural technologies are designed for flat-land plantation agriculture and ignore terrain topography [4]. In Sarawak, **"water, not proximity, determines exposure."** [12, 37]
 
 ---
 
-## 2. Proposed Solution: HuluHilir
+## 2. Proposed Solution: PepperDex Sarawak
 
-**HuluHilir** is a terrain-aware, agentic early warning system designed specifically for Sarawak's smallholder black pepper farms [1]. Moving away from reactive, single-plant treatments, HuluHilir treats pepper disease as a collective watershed challenge [3, 33]. By modeling how gravity and rain move water across sloped farmlands, the system provides smallholders with the exact spatial foresight and precise timing they need to protect their crops before the pathogen ever reaches their soil [1, 33]. Operating entirely on low-spec Android phones with zero hardware purchases, typing, or literacy barriers [7], HuluHilir turns a devastating shared environmental risk into an active, coordinated community defense [8].
+**PepperDex** is a terrain-aware, agentic early warning system for Sarawak's smallholder black pepper farms [1]. Existing tools diagnose a single plant; PepperDex models **where the disease travels next, and when** — because foot rot moves downhill through water in rain pulses, not continuously [6, 12]. It runs as an Android app on an ordinary phone: no hardware purchase, spoken output, tap-based setup.
 
-### The Five-Layer Architecture
+### Methodology — how a decision is made
 
-The intelligence and accessibility of HuluHilir are driven by a cohesive five-layer architecture [10]:
+PepperDex combines four kinds of evidence and refuses to let any single one decide alone:
 
-*   **L0 — Voice and Language Layer (Zero-Adoption Barriers):** Every interaction in the app is wrapped in speech [10]. Text-to-speech reads every prompt, diagnosis, and recommendation aloud in Bahasa Malaysia, heavily utilizing local **Sarawak Malay and Iban terms** [10]. To bypass fragile off-the-shelf Speech-to-Text models for indigenous languages, farmers simply record short voice labels for their land blocks, which are stored and replayed as audio files [10].
-*   **L1 — On-Device CNN Diagnosis (Earliest Warning):** A lightweight, transfer-learned image classifier runs directly on the farmer's mobile phone [11]. It screens photos of the vine’s leaves and stem base [11]. Crucially, it is trained specifically to detect **collar lesions**—the dark, water-soaked tissue at the base of the stem that serves as the absolute earliest visible signature of foot rot [11, 15]—long before leaf yellowing or wilting sets in.
-*   **L2 — Terrain-Aware Spread Projection (The Downhill Water Graph):** Plots are modeled as nodes in a directed graph ordered by relative elevation; edges represent downslope water pathways [12]. By integrating local weather API forecasts, HuluHilir models water-driven pathogen movement downhill [12]. If an infection is confirmed on an uphill block, the system automatically calculates the risk level, downhill path, and arrival time for every downslope plot in its path [12, 13].
-*   **L3 — Treatment Knowledge (RAG + Rules):** The system maintains a deterministic rules table containing approved pesticide types, exact dosing, and **rain-fastness windows** curated from the Malaysian Pepper Board (MPB) and Department of Agriculture (DOA) Sarawak guidelines [14]. No AI hallucination is permitted here: the LLM is tightly bound to this database and cannot recommend any treatment or dosage absent from this verified lookup table [14, 27].
-*   **L4 — Intelligent Agent Orchestration (The Decision Arbitrator):** A central LLM Root Agent orchestrates specialized sub-agents to resolve contradictory data [14, 16]. For example, if a vine shows infection (urging immediate spraying), but the weather forecast predicts heavy downpours tomorrow (which would wash the fungicide away), HuluHilir's agent holds all of these realities simultaneously to issue a single, logical, and sequenced instruction: **“Clear the drain today. Spray Thursday morning.”** [18, 20]
+| Evidence | Source | What it contributes |
+|---|---|---|
+| **What is on the vine** | L1 — photo classifier (MobileNetV3-Small, `.onnx`) | Per-block class + confidence; low confidence means "go and inspect", never a diagnosis |
+| **Where water carries it** | L2 — deterministic downhill graph of the farm's blocks | Risk %, arrival estimate in days, and the path — labelled as estimates, not measurements |
+| **When rain comes** | data.gov.my forecast (qualitative text mapped to an mm estimate; cached fallback is flagged) | The next rain pulses and the rain-free windows |
+| **What treatment is allowed, and when it holds** | L3 — rules table from MPB and DOA Sarawak guidance (6 treatments, with rain-fast hours) | The only source of product, dose and timing |
+
+An AI agent (L4) arbitrates these into **one action, one time, one reason** — e.g. *“Clear the drain today. Drench Thursday morning.”* Around the agent sit deterministic safety checks, so a model mistake cannot reach the farmer as advice:
+
+*   **Rain-fast check** — a spray or drench is re-timed to the real rain-free window, or deferred with a drain-clearing step first.
+*   **Rules check** — the agent's plan is compared with the rules table. Invalid blocks, unknown products and stale dates are dropped, and an untreated diseased block gets its rules-table action back. Every correction is logged.
+*   **Real spread numbers** — the spread model is deterministic, so it is always run for every diseased block; risk figures are never placeholders.
+*   **Fallback** — if the AI model is slow or fails, the decision is made from the rules table alone, and the app says so openly.
+
+### Block states — what the farmer sees change
+
+| State | Set by | Rule |
+|---|---|---|
+| **Protected** | A confident healthy diagnosis, or no risk at all | An unsure (<60%) or unrelated photo never lowers a state |
+| **Alerted** | The spread model, with no photo of that block needed | Projection can raise a block, never lower it |
+| **Harmed** | A direct diagnosis of collar lesion or defoliation/wilt | Diagnosis always overrides projection |
+| **Overrun** | Farm-wide: more than one block Harmed at once | Triggers the Overrun Council |
+
+### The five layers
+
+*   **L0 — Voice & Language:** Advice, agent messages and the rain forecast can be heard aloud in Bahasa Malaysia (tap to hear). Farmers record a spoken name for each block, which is stored and replayed — never transcribed. The interface is Bahasa Malaysia or English; Iban speech is machine-translated and says so, and Iban text falls back to Bahasa Malaysia until a native speaker verifies it.
+*   **L1 — Photo Diagnosis:** A lightweight MobileNetV3-Small classifier, run on the server (`.onnx`), trained to catch **collar lesions** — the earliest visible sign of foot rot [11, 15] — before leaf yellowing. A photo that doesn't match the requested target (leaf vs stem base) prompts a retake; the farmer can always override.
+*   **L2 — Terrain-Aware Spread:** Blocks become nodes in a directed downhill graph built from the setup walk (GPS, plus barometric pressure on phones that have a barometer). The farmer's own answer about which block is higher always wins over the sensors. From a confirmed case, the graph projects risk, path and arrival time for every downslope block [12, 13].
+*   **L3 — Knowledge:** The rules table decides *what* (product, dose, rain-fast timing). A searchable knowledge base of 23 disease-management documents (semantic + keyword search) explains *why* — it can never decide *what* [14, 27].
+*   **L4 — Agent Orchestration:** A RootAgent arbitrates; loop agents run setup and the photo round; an Advisor answers questions from the farm's own records; an Overrun Council ranks blocks during an outbreak; a Google Calendar connection (MCP) schedules approved actions. Details in §6.
 
 ---
 
 ## 3. Target Users
 
-HuluHilir is designed to bridge the gap between rural fields and institutional support, serving two critical user groups within Sarawak's agricultural ecosystem.
-
 ### 1. Primary Users: Sarawak Pepper Smallholders
-These are the local farmers driving Malaysia’s national pepper industry [2]. They are highly vulnerable to crop loss but are completely unserved by expensive, high-tech agricultural tools [2, 26].
+The local farmers driving Malaysia’s national pepper industry [2] — highly exposed to crop loss and unserved by expensive agricultural technology [2, 26].
 
-*   **Socio-Economic Profile:** Over **36,682 registered smallholders** manage these sloped plots, representing **98% of Malaysia's pepper production** [2]. Operating on thin margins, a single outbreak of foot rot wipes out **56% of their annual net returns** (USD 902/ha) [2].
-*   **Accessibility & Language Barriers:** Many rural smallholders face literacy challenges and communicate primarily in local languages [7, 10]. 
-*   **Technology Constraints:** Farmers cannot afford expensive IoT soil sensors or hardware [26]. They rely entirely on **low-spec Android smartphones** and frequently encounter spotty cellular connectivity in remote highland areas [7, 10].
-*   **NCR Land Trust Sensitivities:** A large portion of Sarawak pepper is farmed on **Native Customary Rights (NCR) land** [26]. Because land boundaries are a highly sensitive legal subject on NCR lands, growers are deeply distrustful of applications that track GPS boundaries or record land ownership [26].
+*   **Socio-Economic Profile:** Over **36,682 registered smallholders** manage these sloped plots, representing **98% of Malaysia's pepper production** [2]. A single outbreak can wipe out **56% of annual net returns** (USD 902/ha) [2].
+*   **Accessibility & Language Barriers:** Many rural smallholders face literacy challenges and communicate primarily in local languages [7, 10].
+*   **Technology Constraints:** No budget for IoT soil sensors [26]; they rely on **ordinary Android smartphones** and patchy highland connectivity [7, 10].
+*   **NCR Land Trust Sensitivities:** Much Sarawak pepper is farmed on **Native Customary Rights (NCR) land** [26], where land boundaries are legally sensitive and apps that record them are distrusted [26].
 
-**How HuluHilir adapts to them:** 
-The application requires **zero hardware purchases, zero typing, and zero reading literacy** [7, 21]. Every interaction is wrapped in speech, reading diagnoses and advice aloud in Bahasa Malaysia, utilizing local **Sarawak Malay and Iban terms** [10]. To protect farmer trust, **no land boundaries or ownership records are ever saved**—the system only models the relative elevation order of blocks to project water flow, completely bypassing NCR land mapping sensitivities [26].
+**How PepperDex adapts to them:** no hardware purchase, tap-based setup, spoken advice [7, 21]. **No land boundaries or ownership records are ever saved** — only the relative elevation order and spacing of blocks, which is all the water model needs [26]. There are no accounts or passwords: a phone is linked to its farm, and a private restore code moves the farm to a new phone.
 
 ### 2. Secondary Users: Agricultural Extension Officers (DOA Sarawak & MPB)
-These are field officers and researchers from the **Department of Agriculture (DOA) Sarawak** and the **Malaysian Pepper Board (MPB)**. While they do not use the app daily in the fields, aggregating and analyzing individual farmer plots directly solves their biggest operational constraints.
+Field officers and researchers from the **Department of Agriculture (DOA) Sarawak** and the **Malaysian Pepper Board (MPB)**.
 
-#### How analyzing farmer plots helps DOA Sarawak and MPB:
-*   **Automated Field Triage (Extending Limited Officer Capacity):** Extension officers are severely understaffed relative to the tens of thousands of geographically isolated smallholders. When a farmer’s plot enters an **"Overrun" state** (most blocks infected), HuluHilir automatically shifts from local prevention to triage [13]. It ranks the remaining blocks by salvageability and **escalates the case to DOA officers with a documented digital history** of the outbreak [13]. Officers no longer waste travel time on post-hoc diagnostics; they arrive at remote locations with a complete digital case file already in hand [13].
-*   **Building the First Regional Dataset ("The Missing Record"):** There is currently no historical field record linking Sarawak’s steep topography, rain pulses, and actual crop outcomes. By analyzing individual plots, HuluHilir silently accumulates the **first Sarawak dataset linking terrain, rainfall, treatment timing, and success rates** [7]. MPB and DOA can use this aggregated, anonymized data to see exactly which treatments succeeded or washed away in heavy rain, allowing them to optimize national agricultural guidelines based on real-world evidence [36].
-*   **District-Level Clustering (The "Extension-Officer View"):** Because Phytophthora is water-driven, transmission respects terrain slopes rather than property lines [2]. Plot-level data allows HuluHilir to unlock a macroscopic **"Extension-officer view"** across multiple smallholder farms [36]. Agencies can visualize disease transmission paths across an entire catchment [36]. Instead of reacting to isolated, single-farm complaints, officers can identify downhill pathogen pathways and **proactively warn an entire valley** before the contaminated runoff ever reaches their crops [8, 36].
+*   **Overrun triage (built):** When more than one block is Harmed at once, PepperDex's Overrun Council ranks which block to treat first — ranking only, never a treatment [13]. Every step the agents took is recorded, giving a readable case history.
+*   **Roadmap — officer escalation:** sending that ranked case history to a DOA officer, so they arrive with the file in hand [13].
+*   **Roadmap — the missing record:** each farm already stores its diagnoses, rain, spread projections and actions. Anonymised aggregation into the first Sarawak dataset linking terrain, rainfall, treatment timing and outcome is future work [7, 36].
+*   **Roadmap — extension-officer view:** catchment-level clustering across farms, so an officer can warn a whole valley before the runoff arrives [8, 36].
 
 ---
 
 ## 4. Sarawak Use Case: Why This Region is the Ultimate Testing Ground
 
-Sarawak is not merely one pepper-growing region among many—it is the absolute lifeblood of Malaysia's national pepper industry [4]. The geographic, environmental, and socio-economic realities of Sarawak make it both the most critical and the most scientifically viable environment to deploy HuluHilir [4]. 
+Sarawak is not merely one pepper-growing region among many — it is the lifeblood of Malaysia's national pepper industry [4].
 
 ### 1. The National Pepper Monolith (High Economic Concentration)
-Sarawak represents the perfect geographic focus for a targeted, high-impact agtech intervention:
-*   **Production Dominance:** Sarawak accounts for **over 98% of Malaysia’s entire black pepper production** [2]. 
-*   **Geographical Indication (GI):** Sarawak pepper is a premium global product, holding official **Geographical Indication status since 2003** along with a statutory grading scheme [4]. 
-*   **Smallholder Density:** The industry is powered by **36,682 registered pepper farmers** [2]. Because the crop is so highly concentrated in this single state, success here effectively secures the entire national industry.
+*   **Production Dominance:** Sarawak accounts for **over 98% of Malaysia’s black pepper production** [2].
+*   **Geographical Indication (GI):** Sarawak pepper holds official **Geographical Indication status since 2003** along with a statutory grading scheme [4].
+*   **Smallholder Density:** The industry is powered by **36,682 registered pepper farmers** [2].
 
 ### 2. The Topographic Paradox (Slopes as Pathways)
-The physical layout of Sarawak's farms creates a unique, highly predictable transmission pathway that traditional agricultural tools cannot model:
-*   **The Sloped Drainage Strategy:** Because black pepper vines are highly sensitive to waterlogged soil, farmers in Sarawak's undulating terrain deliberately plant their crops on **steep hill slopes** to ensure natural drainage [4].
-*   **The Pathogen Highway:** This exact terrain design creates a dangerous paradox. *Phytophthora capsici* (foot rot) is a water-driven, soil-borne pathogen [2, 3]. Because of gravity, **the deliberate downhill runoff of water becomes a literal highway for the disease** [2, 4]. 
-*   **Predictable Gravity Vectors:** Unlike flat-land plantation diseases that spread in random radiuses, transmission in Sarawak has a **consistent, predictable downhill direction** [2, 12]. This makes Sarawak the perfect place to deploy a **directed downhill water graph model (L2)** [12].
+*   **The Sloped Drainage Strategy:** Farmers deliberately plant on **steep hill slopes** to ensure natural drainage [4].
+*   **The Pathogen Highway:** Because of gravity, **the deliberate downhill runoff of water becomes a literal highway for the disease** [2, 4].
+*   **Predictable Gravity Vectors:** Transmission has a **consistent, predictable downhill direction** [2, 12] — exactly what a directed downhill graph (L2) models [12].
 
 ### 3. The Rain Pulse Mechanic (Climatological Catalyst)
-Sarawak's tropical climate directly dictates how the disease behaves, transforming the early warning system from a diagnostic tool into a predictive planning tool:
-*   **Rain Pulse Spread:** Foot rot does not spread continuously; **it spreads in distinct rain pulses** [6]. The pathogen relies on heavy rainfall events to wash spores downhill into neighboring soil [6].
-*   **Shift to Active Readiness:** Because of this "pulse" mechanic, the core question for a Sarawak farmer is never just *"did we catch the disease?"* but rather **"what happens at the next rain, and is our catchment ready?"** [6]. This insight allows HuluHilir to remain active and highly valuable even on farms with zero detected disease, using regional rain forecasts to trigger proactive drainage maintenance and protective spraying [6, 13].
+*   **Rain Pulse Spread:** Foot rot spreads in **distinct rain pulses**, not continuously [6].
+*   **Shift to Active Readiness:** The question is not *"did we catch it?"* but **"what happens at the next rain, and is the farm ready?"** [6]. PepperDex stays useful on a farm with **zero photos taken** — the rain forecast and the Advisor work from day one [6, 13].
 
 ### 4. Native Customary Rights (NCR) Land Sensitivities
-A significant portion of Sarawak’s pepper is cultivated on **Native Customary Rights (NCR) land** [26]. 
-*   **Legal & Social Sensitivity:** Land boundaries on NCR land are historically complex and highly sensitive [26]. Rural farmers are deeply distrustful of commercial agtech apps that require them to draw GPS boundaries or register land ownership [26].
-*   **Privacy-First Mapping:** HuluHilir respects this unique socio-legal reality by **never recording land boundaries or ownership** [26]. It only records the relative elevation order of blocks to calculate gravity-fed water runoff, entirely bypassing the need for sensitive geographical mapping [26].
+*   **Legal & Social Sensitivity:** NCR land boundaries are historically complex and highly sensitive [26].
+*   **Privacy-First Mapping:** PepperDex **never records land boundaries or ownership** [26] — only the relative order and spacing of blocks.
 
 ---
 
 ## 5. UN SDG Alignment
 
-HuluHilir directly aligns with the United Nations Sustainable Development Goals (SDGs) by transforming advanced AI into an accessible, low-cost utility that protects both rural livelihoods and the surrounding rainforest ecosystems of Sarawak [9, 10]. 
-
 ### Goal 2: Zero Hunger
 *   **Target Focus:** Target 2.3 — Double the agricultural productivity and incomes of small-scale food producers.
-*   **HuluHilir’s Contribution:** Phytophthora foot rot causes **over 30% vine mortality**, costing farmers **USD 902 per hectare** and wiping out **56% of their annual net returns** [2]. By replacing guesswork with precise, terrain-aware early warnings and timed drainage instructions, HuluHilir directly protects smallholder crop yields and preserves vital household income [7, 9]. Independent farm-level analysis found that avoiding water stagnation and ensuring good drainage reduced foot rot losses by **24% (USD 439/ha)**—exceeding the 20% reduction achieved through chemical fungicides [8]. HuluHilir turns general agronomic advice into a dated, actionable instruction [9].
+*   **PepperDex’s Contribution:** Foot rot causes **over 30% vine mortality**, costing **USD 902 per hectare** and **56% of annual net returns** [2]. Independent farm-level analysis found that good drainage reduced foot rot losses by **24% (USD 439/ha)** — more than the 20% from fungicide alone [8]. PepperDex turns that general advice into a dated, per-block instruction [9].
 
 ### Goal 15: Life on Land
 *   **Target Focus:** Target 15.9 — Integrate ecosystem and biodiversity values into national and local planning.
-*   **HuluHilir’s Contribution:** Traditional reactive farming leads to massive fungicide waste [3, 25]. Contact fungicides are highly effective but wash off easily; spraying them within 24–48 hours of a heavy tropical downpour simply flushes these expensive chemicals directly into the soil and local river catchments [3]. HuluHilir’s **Rain-Fast Treatment Rules (L3)** and **Agent Orchestration (L4)** ensure chemical applications are strictly timed outside of rain-fastness windows [14, 25]. By prioritizing preventative physical drainage clearing over blind spraying, the system significantly reduces chemical runoff into Sarawak’s rich terrestrial and aquatic ecosystems [8, 9].
+*   **PepperDex’s Contribution:** Spraying inside the rain-fast window flushes fungicide into soil and rivers [3]. PepperDex re-times or defers every spray and drench to a rain-free window, and puts drain clearing first when rain is coming [14, 25], reducing chemical runoff into Sarawak’s ecosystems [8, 9].
 
 ### Goal 9: Industry, Innovation, and Infrastructure
-*   **Target Focus:** Target 9.c — Significantly increase access to information and communications technology and strive to provide universal and affordable access to the internet.
-*   **HuluHilir’s Contribution:** Advanced agricultural technology is historically locked behind expensive hardware paywalls (like IoT soil sensors, cellular towers, and drone mapping) that rural smallholders cannot afford [26]. HuluHilir introduces a **low-cost, highly accessible AI infrastructure** specifically designed for rural users operating with **intermittent connectivity** on **low-spec Android smartphones** [7, 10]. It brings sophisticated multi-agent orchestration and local computer vision directly to the farm gate with **zero hardware purchases and zero adoption barriers** [7, 10].
+*   **Target Focus:** Target 9.c — Increase access to information and communications technology.
+*   **PepperDex’s Contribution:** Multi-agent AI, computer vision and terrain modelling delivered on an ordinary Android phone, with **no hardware purchase** [7, 10], using free government weather data.
 
 ---
 
-## 6. The AI Component: Hybrid Multi-Agent Architecture
+## 6. The AI Component: Agent Architecture
 
-HuluHilir rejects generic chat prompts, instead deploying a **hybrid AI stack** that combines on-device computer vision, deterministic physical modeling, and a reasoning multi-agent system to deliver highly reliable, hallucination-free guidance directly to the field [10, 14, 33].
+PepperDex is a **hybrid system**: machine learning where it is reliable (the photo classifier), deterministic models where safety matters (spread graph, rules table, rain-fast arithmetic), and language-model agents to arbitrate between them and talk to the farmer.
 
-### 1. Edge Computer Vision: L1 CNN Diagnosis
-To detect infection without relying on fragile rural internet connections, a lightweight **MobileNetV3-Small model** runs entirely on-device [11, 34].
-*   **The Early-Symptom Focus:** Instead of waiting for obvious leaf yellowing [11], the model is trained to detect **collar lesions** (dark, water-soaked stem wounds) [11, 15], which represent the earliest treatable window.
-*   **Structured 6+1 Class Map [15]:** Images are classified into precise diagnostic states to feed the reasoning engine:
-    *   `healthy_leaf` (*SIHAT (DAUN)*): Confirms leaf check — no action [15].
-    *   `healthy_collar` (*SIHAT (PANGKAL)*): Confirms collar check — no action [15].
-    *   `foliar_yellowing` (*DAUN MENGUNING*): Chlorosis; marked as ambiguous—context decides [15].
-    *   `collar_lesion` (*LESI PANGKAL*): Dark water-soaked lesion at stem base (**Harmed — urgent escalation**) [15].
-    *   `defoliation_wilt` (*GUGUR DAUN / LAYU*): Advanced infection; triggers salvage triage [15].
-    *   `unrelated` (*TIADA KAITAN*): Non-plant clutter/blur; triggers immediate retake prompt [15, 16].
+```
+RootAgent (arbitrator) ─────────────────────────────────────────────
+├── Deterministic tools   get_weather · compute_spread · get_treatment
+│                         find_spray_window · query_farm_history
+├── SetupCoordinator      loop agent — guides the setup walk (bounded)
+├── DiagnosisCoordinator  loop agent — the block-by-block photo round
+├── Advisor               answers questions from the farm's records + knowledge base
+├── Overrun Council       only when >1 block is Harmed:
+│      Agronomic Urgency · Cost Feasibility · Logistics → Council Orchestrator
+│      (ranks blocks only — its output format has no field for a treatment)
+└── Google Calendar (MCP) read: check free slots · write: only after the farmer approves
+```
 
-### 2. Zero-Hallucination Guardrails: L3 RAG + Rules
-To guarantee agricultural safety, the system separates **natural language explanation** from **clinical dosage calculation** [14, 27]:
-*   **The Rules Table:** Exact fungicide types, safe chemical dosages, and rain-fastness windows are locked in a deterministic database compiled from official MPB and Department of Agriculture (DOA) Sarawak guidelines [14].
-*   **The Guardrail:** The LLM is strictly prohibited from generating, modifying, or inventing dosages [27]. It is only permitted to retrieve and read directly from this verified lookup table [14, 27].
+### The agents
 
-### 3. Multi-Agent Orchestration: L4 Decision Arbitrator
-A fixed software pipeline cannot handle conflicting data (e.g., advising a farmer to spray a sick plant when heavy rain is forecast to wash it away tomorrow) [18]. HuluHilir uses a **multi-agent topology** to hold these complex, competing factors simultaneously [14, 18]:
+*   **RootAgent — the arbitrator.** Calls the tools, weighs weather, spread and rules, and outputs one plan per affected block. Every tool call is logged, so each recommendation has a traceable "how this was decided".
+*   **DiagnosisCoordinator — the photo round.** Walks the farmer block by block, checks each photo matches the target (leaf or stem base), prompts a retake if not (the farmer can always override), and reports the results per block when the round is complete.
+*   **SetupCoordinator — the setup walk.** Guides the farmer through marking blocks and answering "which is higher?" questions until a valid downhill graph exists.
+*   **Advisor — the farm's memory.** Answers free-form questions (*"Are my blocks safer now?"*) using a live snapshot of the farm: every block's state, the latest and previous diagnosis, the current plan, projected spread, rain, and schedule proposals — plus the recent conversation. General questions are answered from the knowledge base. It may repeat the app's plan, but never states a dose or product itself.
+*   **Diagnosis-necessity check.** Typing `/diagnose` gets a verdict on whether a new photo round is worth doing, from rain since the last check and the blocks' states. It is a deterministic rule, not a model — and it never blocks the farmer from starting one anyway.
+*   **Overrun Council — triage during an outbreak.** Three agents argue from different angles (agronomic urgency, cost, logistics) and an orchestrator ranks the blocks. It can re-order; it can never add a treatment, dose or timing.
+*   **Google Calendar via MCP — schedules with consent.** After a decision, each schedulable action (spray, drench, drain clearing) becomes a **proposal card**. Nothing is written to a calendar until the farmer taps Approve on that card; the agent itself can only *read* the calendar, to avoid clashes.
 
-*   **RootAgent (LlmAgent):** The central arbitrator [16]. It sequences workflows, routes tool calls, and logs every deferred action to keep the system's logic fully auditable [16].
-*   **SetupCoordinator (LoopAgent):** Guides the farmer step-by-step through mapping plot elevations until a coherent downhill water graph is constructed [17].
-*   **DiagnosisCoordinator (LoopAgent):** Guides block-by-block visual capture after major rain events to ensure a complete farm-level picture is established before running spread projections [17, 23].
-*   **Advisor (LlmAgent + RAG):** Evaluates rainfall history and proactively prevents alert fatigue by advising *against* unnecessary inspections (e.g., reassuring the farmer when past checks were healthy and rain has been minimal) [17, 24].
+### The agents, visible — the live activity feed
 
-### The Orchestration in Action (The Core Moment) [20]
-When a farmer scans an infected block on a sloped plot, the agents coordinate instantly:
-1.  **L1 CNN** detects a `collar_lesion` on an upslope block [20].
-2.  **L2 Terrain Graph** projects that gravity-fed runoff will carry the pathogen downhill to a neighboring plot within 4 days [20].
-3.  **L3 Rules Table** pulls the required fungicide, which requires a 24-hour dry, rain-fast window [20].
-4.  **Weather API** forecasts a massive 46 mm downpour tomorrow afternoon [20].
+A diagnosis is not a spinner. After the photo round, the Advisor chat shows each agent's real step as it happens, each under its own name and icon: the photo results, the council's debate (if Overrun), rainfall, the spread projection, the approved treatments and rain-free window, any rules-check correction, the decision, and finally the schedule proposals waiting for approval. Every message comes from something that actually happened — a tool result or a council transcript — never a model describing itself afterwards. Tap any message to hear it.
 
-Instead of a wasteful instruction to spray immediately (which would wash the fungicide into the soil), the **RootAgent arbitrates**: it defers the chemical spray, orders immediate physical drainage clearing to divert runoff today, and schedules the chemical spray for Thursday morning after the rain pulse passes [20].
+### The orchestration in action (the core moment) [20]
+1.  **L1** detects a `collar_lesion` on an upslope block [20].
+2.  **L2** projects runoff carrying the pathogen to a downslope block within ~4 days [20].
+3.  **L3** returns the approved drench, which needs a 24-hour rain-free window [20].
+4.  **Weather** forecasts a heavy downpour tomorrow [20].
 
-The final output is delivered via the speech-wrapped interface: **"Clear the drain today. Spray Thursday morning."** [20]
+The RootAgent defers the drench, orders drain clearing today, and schedules the drench for the first rain-free morning. The farmer sees it arrive in the chat, approves the calendar proposal, and hears: **“Clear the drain today. Drench Thursday morning.”** [20]
+
+### Built for the field, not the lab
+*   **Local or cloud, same code:** a local open-weight model (Qwen 2.5 14B via Ollama) on a laptop, or Gemini on Cloud Run — one configuration line apart.
+*   **Never stuck:** each AI turn is time-limited; on timeout the rules-table path decides and the app says so.
+*   **Honest numbers:** every risk figure is labelled an estimate; the weather card says when it is showing cached data.
+
+---
+
+## 7. User Flow
+
+1.  **Open the app.** A new phone offers three ways in: **Try the demo farm** (a ready-made farm with diagnoses, agents and 3D terrain), **Set up my farm**, or **Restore my farm** (a private code from Settings on the old phone).
+2.  **Set up once.** Register (the phone checks for a barometer automatically), then walk the farm: at each block, tap to mark it, take a photo and record its spoken name. A live position and altitude readout shows progress (the live map view is off in this build until a Maps key is configured). Answer a few "which block is higher?" questions — your answer always wins — and the downhill graph is built.
+3.  **Home, from day one.** The **rain card** shows the coming rain pulses from the official forecast (up to 7 days); the **Priority action card** shows the one thing to do next with its metrics (risk, confidence, arrival, rain); the **Advisor card** says whether a diagnosis is due. All of this works with zero photos.
+4.  **Ask the Advisor.** Type `/diagnose` for a verdict, or ask anything about your farm. Tap **Begin Diagnosis** whenever you like.
+5.  **Photograph each block.** DiagnosisCoordinator guides you block by block; a wrong-target photo prompts a retake.
+6.  **Watch the agents work.** The chat fills with each agent's step, then the decision — one action, one time, one reason per block.
+7.  **Approve the schedule.** Proposal cards appear; tap **Approve** to add an action to Google Calendar (on the team's linked phone) or keep it in the app, or **Reject** it.
+8.  **See the farm change.** Home cards update from the new run; on the **Farm** tab, blocks change colour — Harmed from a diagnosis, Alerted from the projection downhill. ⚠ 3D terrain view pending on-device confirmation in v13.
+9.  **Follow up.** Ask *"Does this mean my blocks are safer now?"* — the Advisor compares this round with the last one for your blocks.
+
+---
+
+## 8. Shortcuts (landing page buttons)
+
+| Button | Target |
+|---|---|
+| **GitHub repository** | `https://github.com/nathanyap17/huluhilir` (repo keeps its original name; README is PepperDex) |
+| **API documentation** | `https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs` (same Cloud Run service, v2 contents) |
+| **Demo video** | *(link to be added when the video is published)* |
+| **Download the Android app** | QR code + link to the latest `.apk` on this site (fixed name `pepperdex-latest.apk`). Android only; allow "install unknown apps" for the browser when prompted. |
+
+Site: `https://sfws-aicc-workspace-1.web.app/` — the same address printed on the bunting QR.

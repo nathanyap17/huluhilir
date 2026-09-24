@@ -1,7 +1,7 @@
 """should_diagnose() -- the Advisor's deterministic core. docs/PROJECT_SPEC.md §6.
 
 Computed at request time (GET /farm/{id}/advisor); no background polling
-(huluhilir-rules skill §6: the Advisor recommends, it never blocks, and must
+(pepperdex-rules skill §6: the Advisor recommends, it never blocks, and must
 work with zero diagnosis cycles ever having existed).
 """
 from sqlalchemy import select
@@ -23,6 +23,7 @@ ACTIVE_INFECTION_FLOOR_DAYS = 5
 _REASON_TEXT_MS = {
     "heavy_rain_recent": "Hujan lebat baru-baru ini. Masa untuk diagnosis.",
     "active_infection": "Jangkitan aktif dikesan. Diagnosis susulan disyorkan.",
+    "monitoring_infection": "Jangkitan aktif sedang dipantau. Ikuti tindakan keutamaan di atas.",
     "protected_stable": "Semua blok sihat dan hujan rendah. Tiada diagnosis diperlukan buat masa ini.",
     "stale": "Sudah lama sejak diagnosis terakhir. Pertimbangkan pusingan baharu.",
     "no_action_needed": "Tiada tindakan diperlukan buat masa ini.",
@@ -48,12 +49,19 @@ async def should_diagnose(
 
     now = now_kuching()
     if last_cycle is not None and last_cycle.completed_at is not None:
-        days_since = (now - last_cycle.completed_at).days
-        last_cycle_at = last_cycle.completed_at
+        # SQLite drops tzinfo on read even for DateTime(timezone=True) columns,
+        # so completed_at comes back naive; subtracting it from an aware
+        # now_kuching() raised TypeError -> dashboard 500 right after the
+        # first diagnosis (2026-09-20). Values are stored as Asia/Kuching.
+        completed_at = last_cycle.completed_at
+        if completed_at.tzinfo is None:
+            completed_at = completed_at.replace(tzinfo=now.tzinfo)
+        days_since = (now - completed_at).days
+        last_cycle_at = completed_at
     else:
         # Never diagnosed -- treat as maximally stale so a never-diagnosed farm
         # eventually gets nudged toward its first cycle, rather than silently
-        # never recommending one (huluhilir-rules skill §6 requires the app to
+        # never recommending one (pepperdex-rules skill §6 requires the app to
         # work with zero photos, not that the Advisor stay silent forever).
         days_since = STALE_DAYS
         last_cycle_at = None
@@ -62,6 +70,8 @@ async def should_diagnose(
         urgency, reason_code = AdvisorUrgency.high, "heavy_rain_recent"
     elif any_alerted_or_harmed and days_since >= ACTIVE_INFECTION_FLOOR_DAYS:
         urgency, reason_code = AdvisorUrgency.high, "active_infection"
+    elif any_alerted_or_harmed and days_since < ACTIVE_INFECTION_FLOOR_DAYS:
+        urgency, reason_code = AdvisorUrgency.medium, "monitoring_infection"
     elif blocks_all_protected and rain_since_last_cycle_mm < STABLE_RAIN_CEILING_MM and days_since < STABLE_DAYS_CEILING:
         urgency, reason_code = AdvisorUrgency.low, "protected_stable"
     elif days_since >= STALE_DAYS:
@@ -73,7 +83,7 @@ async def should_diagnose(
         farm_id=farm_id,
         urgency=urgency,
         reason_code=reason_code,
-        reason_ms=_REASON_TEXT_MS[reason_code],
+        reason_ms=_REASON_TEXT_MS.get(reason_code, _REASON_TEXT_MS["no_action_needed"]),
         last_cycle_at=last_cycle_at,
         days_since_last_cycle=days_since,
         rain_since_last_cycle_mm=rain_since_last_cycle_mm,

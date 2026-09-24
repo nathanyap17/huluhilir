@@ -87,3 +87,15 @@ class DraftAlertRequest(ORMModel):
 class DraftAlertResult(ORMModel):
     message_ms: str
     risk_band_shared: BlockState
+
+
+class DraftCalendarSyncRequest(ORMModel):
+    """🔄 v2. One recommendation -> one draft event, never a list from a
+    single LLM call -- see app/agent/llm_tools.py's draft_calendar_sync_flat
+    docstring for why (the same small-model JSON-array reliability concern
+    already documented for the RootAgent's own output)."""
+
+    block_label: str
+    action_type: str
+    recommended_at: datetime
+    reason_ms: str

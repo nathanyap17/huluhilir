@@ -1,9 +1,9 @@
 ---
-name: huluhilir-rules
-description: Non-negotiable domain and safety rules for HuluHilir. Use whenever writing code that touches treatment recommendations, dose or timing, elevation and terrain data, neighbour alerts, voice or language handling, spread model output, or any user-facing text. These are commitments made in a submitted AICC 2026 proposal — violating them makes the submission dishonest.
+name: pepperdex-rules
+description: Non-negotiable domain and safety rules for PepperDex (formerly HuluHilir). Use whenever writing code that touches treatment recommendations, dose or timing, elevation and terrain data, neighbour alerts, voice or language handling, spread model output, or any user-facing text. These are commitments made in a submitted AICC 2026 proposal — violating them makes the submission dishonest.
 ---
 
-# HuluHilir — Non-Negotiable Rules
+# PepperDex (formerly HuluHilir) — Non-Negotiable Rules
 
 Product commitments **already stated in a submitted AICC 2026 proposal**. Code that violates them makes the submission untrue. Enforce structurally, not by convention.
 
@@ -40,7 +40,7 @@ No production speech recognition exists for Iban or Sarawak Malay.
 - STT is optional, `ms-MY` only, for free-form notes where failure is harmless.
 - Iban text comes from **human-translated templates + pre-translated slots** — never LLM-generated. LLMs cannot write reliable Iban, and no BM→Iban MT exists.
 
-**Speech output tiers:** pre-recorded clips (MVP) → MMS-TTS live synthesis (optimised) → `flutter_tts` BM (fallback).
+**Speech output tiers:** pre-recorded clips (MVP) → MMS-TTS live synthesis (optimised) → `expo-speech` BM (fallback). *(Was `flutter_tts` in v1 — RN library swap only, no logic change.)*
 
 ---
 
@@ -168,6 +168,48 @@ else:
 
 ---
 
+## 12 · The Overrun council may re-rank; it may never generate a treatment
+
+`OverrunCouncil` fires only when `farm_state == 'overrun'` **and** more than one block is simultaneously `Harmed`. It exists to rank already-approved actions by urgency, cost, and logistics — never to decide what those actions are.
+
+```python
+# CORRECT — the council's output schema has no field capable of holding one
+class TriageRanking(BaseModel):
+    block_id: str
+    rank: int
+    rationale_ms: str
+    # no treatment_id, dose_text, or recommended_at field exists here —
+    # this is enforced by the schema, not by convention
+
+# FORBIDDEN — never let the council's output reach get_treatment or override it
+if council_verdict.suggested_treatment:   # this field must not exist
+    apply_treatment(council_verdict.suggested_treatment)
+```
+
+- The wall is **structural**: no dose/product/timing field exists anywhere in the council's response type, so there is nowhere for a hallucinated treatment to go.
+- `get_treatment` and `find_spray_window` remain the only source of *what* to do. The council only ever answers *in what order*.
+- Every debate is logged to `council_debates` — the transcript is demo evidence, not just an internal record.
+
+## 13 · Calendar sync is drafted and consent-gated, never automatic
+
+`draft_calendar_sync` produces text; it never writes to a calendar directly.
+
+```python
+# CORRECT
+draft = draft_calendar_sync(recommendation_ids)
+# farmer sees the draft, taps approve
+if farmer_approved:
+    sync_to_device_calendar(draft)
+
+# FORBIDDEN — no silent sync path may exist
+sync_to_device_calendar(draft)   # without an explicit approval gate first
+```
+
+- Same consent pattern as `draft_alert`: draft → farmer approves → action. Never invented fresh, always reused.
+- Sync is revocable — `calendar_sync_grants.revoked_at` must be checked before any future write.
+
+---
+
 ## Checklist before committing agent or tool code
 
 - [ ] Does any dose, product, or timing come from anywhere but the rules table?
@@ -180,3 +222,6 @@ else:
 - [ ] Does every user-facing string have a `speech_template_id`?
 - [ ] Does any code branch on deployment target instead of reading configuration?
 - [ ] Is any secret or API key hard-coded rather than read from the environment?
+- [ ] Does the council's output type have a field that could hold a dose, product, or timing? *(It must not.)*
+- [ ] Can a calendar sync fire without a prior farmer approval check?
+- [ ] Does a block's `current_state` ever get silently downgraded by an improving projection alone, rather than only by a direct diagnosis?

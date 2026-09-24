@@ -2,7 +2,7 @@
 
 A voice label is an audio sticker, not data to be parsed: it is stored as a
 blob and replayed to the farmer beside the block photo. **Nothing in this
-codebase transcribes it** (huluhilir-rules skill §2) — there is deliberately
+codebase transcribes it** (pepperdex-rules skill §2) — there is deliberately
 no ASR endpoint here, and adding one would break a submitted proposal
 commitment.
 """

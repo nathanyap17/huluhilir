@@ -37,7 +37,15 @@ class GetTreatmentResult(ORMModel):
 
 
 class ForecastPoint(ORMModel):
-    date: str
+    # Named to match WeatherForecastOut.forecast_date exactly (not `date`) --
+    # a live test showed qwen2.5:14b occasionally passing get_weather's
+    # forecast_7d items straight through into find_spray_window without
+    # renaming the field, which silently failed FunctionTool's argument
+    # validation. Matching names removes the need for the model to
+    # translate anything when chaining one tool's output into another's
+    # input (docs/CLAUDE.md § Conventions: "Contract drift is the top
+    # integration risk").
+    forecast_date: str
     rainfall_mm: float
     probability: Optional[float] = None
 

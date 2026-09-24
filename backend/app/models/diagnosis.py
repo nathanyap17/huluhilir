@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, now_kuching, ulid_pk
+from app.models.base import KuchingDateTime, Base, now_kuching, ulid_pk
 
 
 class DiagnosisCycle(Base):
@@ -18,8 +18,8 @@ class DiagnosisCycle(Base):
     trigger_reason: Mapped[str] = mapped_column(String(30))
     triggering_rain_mm: Mapped[Optional[float]] = mapped_column(Float)
     triggering_rain_date: Mapped[Optional[str]] = mapped_column(String(10))
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_kuching)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
     blocks_total: Mapped[int] = mapped_column(Integer)
     blocks_captured: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(12), default="in_progress")
@@ -36,7 +36,7 @@ class Observation(Base):
     image_uri: Mapped[str] = mapped_column(String(255))
     image_hash: Mapped[str] = mapped_column(String(64))
     capture_target: Mapped[str] = mapped_column(String(20))
-    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    captured_at: Mapped[datetime] = mapped_column(KuchingDateTime())
     gps_lat: Mapped[Optional[float]] = mapped_column(Float)
     gps_lon: Mapped[Optional[float]] = mapped_column(Float)
     sync_status: Mapped[str] = mapped_column(String(12), default="local_only")
@@ -77,4 +77,4 @@ class RiskAssessment(Base):
     elevation_tier_used: Mapped[str] = mapped_column(String(12))
     model_version: Mapped[str] = mapped_column(String(20))
     is_estimate: Mapped[bool] = mapped_column(Boolean, default=True)
-    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_kuching)
+    computed_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)

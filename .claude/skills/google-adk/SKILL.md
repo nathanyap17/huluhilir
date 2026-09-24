@@ -31,7 +31,7 @@ grep -rn "escalate" ../adk-python/src/
 
 ## Agent types used in this project
 
-| Type | Use | HuluHilir usage |
+| Type | Use | PepperDex usage |
 |---|---|---|
 | `LlmAgent` | Reasoning, routing, tool selection | `RootAgent`, `Advisor` |
 | `LoopAgent` | Repeat sub-agents until escalation | `SetupCoordinator`, `DiagnosisCoordinator` |
@@ -103,7 +103,7 @@ spread_tool = FunctionTool(func=compute_spread)
 ```python
 from google.adk.models.lite_llm import LiteLlm
 
-model = LiteLlm(model="ollama_chat/qwen2.5:14b")  # or gemma4:e2b; gemma2:9b lacks tool support (EXP-5)
+model = LiteLlm(model="ollama_chat/gemma2:9b")
 ```
 
 Provider switching is one line — configure Ollama (primary) and a cloud API (backup); test both before demo day.
@@ -121,7 +121,7 @@ Provider switching is one line — configure Ollama (primary) and a cloud API (b
 | Loop never ends | No `escalate()` and no `max_iterations` | Set both |
 | LLM ignores a tool | Vague docstring | Rewrite for the model |
 | Tool args mismatched | Hand-written schema drifted from Pydantic | Generate from `.model_json_schema()` |
-| Small model won't call tools | Model too weak for function calling | Use `qwen2.5:14b` or `gemma4:e2b`; see `../sandbox/EXPERIMENTS.md` EXP-5 |
+| Small model won't call tools | Model too weak for function calling | See `../sandbox/EXPERIMENTS.md` EXP-5 |
 | State lost between iterations | Not using session state | Read `../adk-docs/docs/sessions/` |
 
 ---

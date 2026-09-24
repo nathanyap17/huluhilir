@@ -16,9 +16,19 @@ class ToolCallLogger:
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
         self._starts: dict[str, list[float]] = defaultdict(list)
+        # Optional live feed (app/agent/progress.py): set by the runner so each
+        # call also shows up in the Advisor chat while the run is in flight.
+        self.progress_run_id: str | None = None
+        self.block_labels: dict[str, str] = {}
 
     def before_tool(self, tool, args: dict, tool_context) -> None:
         self._starts[tool.name].append(time.perf_counter())
+        if self.progress_run_id:
+            from app.agent import progress
+
+            before = progress.describe_before(tool.name)
+            if before:
+                progress.set_current(self.progress_run_id, *before)
 
     def after_tool(self, tool, args: dict, tool_context, tool_response: Any) -> None:
         starts = self._starts[tool.name]
@@ -36,6 +46,15 @@ class ToolCallLogger:
             # result_summary} shape exactly.
             "_raw_result": _jsonable(tool_response),
         })
+        if self.progress_run_id:
+            self.emit_call(self.calls[-1])
+
+    def emit_call(self, call: dict[str, Any]) -> None:
+        from app.agent import progress
+
+        ev = progress.describe_call(call, self.block_labels)
+        if ev and self.progress_run_id:
+            progress.emit(self.progress_run_id, ev["agent"], ev["text_ms"], ev["text_en"], ev["kind"])
 
     def public_calls(self) -> list[dict[str, Any]]:
         """The DB-persistable view of self.calls -- drops _raw_result."""

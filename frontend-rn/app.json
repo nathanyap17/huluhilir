@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "PepperDex",
+    "slug": "pepperdex",
+    "version": "1.0.0",
+    "scheme": "pepperdex",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "my.agrohack.pepperdex"
+    },
+    "android": {
+      "package": "my.agrohack.pepperdex",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 20,
+      "allowBackup": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      "expo-sqlite",
+      "expo-font",
+      "expo-asset",
+      "expo-file-system",
+      "expo-calendar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ],
+      "expo-maps"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2f3b7d1c-958a-444f-b0a2-5c56d633328d"
+      }
+    },
+    "owner": "nathanyap17s-workspace-1"
+  }
+}

@@ -3,7 +3,7 @@
 Loads the pre-trained checkpoint from classifier/best-model/ (EXP-1: allowed
 on-site, no live training needed). Classification only, six classes, no
 bounding boxes. `confidence < 0.60` -> advise physical inspection, never
-assert a diagnosis (huluhilir-rules skill §9).
+assert a diagnosis (pepperdex-rules skill §9).
 """
 import time
 from functools import lru_cache

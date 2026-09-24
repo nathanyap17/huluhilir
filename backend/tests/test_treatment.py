@@ -20,9 +20,9 @@ def test_rain_inside_rainfast_window_defers():
         treatment_id="metalaxyl_drench",
         rainfast_hours=24,
         forecast=[
-            ForecastPoint(date="2026-08-23T06:00:00", rainfall_mm=0, probability=0.1),
+            ForecastPoint(forecast_date="2026-08-23T06:00:00", rainfall_mm=0, probability=0.1),
             # rain falls 12h after this start -- strictly inside the 24h rainfast window
-            ForecastPoint(date="2026-08-23T18:00:00", rainfall_mm=46, probability=0.8),
+            ForecastPoint(forecast_date="2026-08-23T18:00:00", rainfall_mm=46, probability=0.8),
         ],
     )
     result = find_spray_window(req)
@@ -35,9 +35,9 @@ def test_dry_window_is_recommended():
         treatment_id="metalaxyl_drench",
         rainfast_hours=24,
         forecast=[
-            ForecastPoint(date="2026-08-23T06:00:00", rainfall_mm=0, probability=0.1),
-            ForecastPoint(date="2026-08-24T06:00:00", rainfall_mm=0, probability=0.1),
-            ForecastPoint(date="2026-08-25T06:00:00", rainfall_mm=46, probability=0.8),
+            ForecastPoint(forecast_date="2026-08-23T06:00:00", rainfall_mm=0, probability=0.1),
+            ForecastPoint(forecast_date="2026-08-24T06:00:00", rainfall_mm=0, probability=0.1),
+            ForecastPoint(forecast_date="2026-08-25T06:00:00", rainfall_mm=46, probability=0.8),
         ],
     )
     result = find_spray_window(req)

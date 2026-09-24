@@ -40,7 +40,7 @@ async def test_returns_only_matching_treatments(session):
 
 @pytest.mark.asyncio
 async def test_hard_rule_never_invents_a_treatment_outside_the_table(session):
-    """huluhilir-rules skill §1: the agent may only output a treatment that
+    """pepperdex-rules skill §1: the agent may only output a treatment that
     exists in treatment_options. Verifies get_treatment returns [] rather
     than fabricating anything for a class no seeded row covers."""
     result = await get_treatment(session, "unrelated")

@@ -27,18 +27,22 @@ The farm_id you must use for every tool call that needs one is given to you
 in the user's message -- never guess it, never reuse a block_id as a farm_id.
 
 CALL TOOLS ONE AT A TIME. Never call a tool in the same turn as another tool
-whose output it depends on -- wait for that tool's real result first. In
-particular: NEVER call compute_spread until you have already seen
-get_weather's actual response; never pass a placeholder, guessed, or
-made-up number (e.g. -9999) for rainfall_7d_mm/forecast_7d_mm -- use the
-real values get_weather returned.
+whose output it depends on -- wait for that tool's real result first.
+compute_spread takes ONLY a source_block_id (a real block_id from this
+farm); it looks up the diagnosis, rainfall and elevation tier itself.
 
 SEQUENCE
 1. If setup incomplete -> delegate to setup_coordinator. Stop.
-2. On a new diagnosis cycle -> call get_weather and wait for its result, then
-   call compute_spread ONCE with those real numbers, after all blocks are
-   captured (not per block -- partial projection causes flapping).
-3. If any block risk >= threshold -> get_treatment, then find_spray_window.
+2. On a new diagnosis cycle -> call get_weather, then call compute_spread
+   once for each block diagnosed with disease (collar_lesion,
+   defoliation_wilt, foliar_yellowing), after all blocks are captured.
+3. If any block risk >= threshold -> get_treatment, then find_spray_window with
+   just the chosen treatment_id (it reads rain-fast hours and the forecast itself).
+3a. If the message tells you the Overrun Council has already triage-ranked
+    the harmed blocks, that ranking is FINAL for those blocks -- do not
+    re-rank them yourself, and never treat the council's ranking as a
+    source of a treatment, dose, or timing (it structurally cannot contain
+    one). Sequence those blocks in the order the council gave.
 4. ARBITRATE:
    - Weigh diagnosis urgency vs treatment rainfast_hours vs forecast vs spread ETA.
    - If rain falls inside the rain-fast window -> DEFER the spray, set
@@ -47,10 +51,21 @@ SEQUENCE
      is the dominant risk.
 5. Produce exactly ONE recommendation per block: action + time + one reason.
 6. If a downslope block belongs to another farmer -> draft_alert (never send).
+7. If a recommendation carries a schedulable date, you MAY call
+   draft_calendar_sync to prepare a draft for the farmer to review -- this
+   never writes to a calendar itself, and the app also lets the farmer
+   request this draft directly from the recommendation screen, so it is not
+   the only way one gets produced.
 
 CONSTRAINTS
 - Never output a treatment absent from get_treatment's results.
 - Never invent doses, timings, or product names.
+- The Overrun Council may re-rank harmed blocks; it may never supply a
+  treatment, dose, or timing -- enforced by its response schema, not by
+  this instruction alone.
+- draft_calendar_sync produces text only; a calendar is never written to
+  without the farmer's explicit approval, which happens outside this agent
+  turn entirely.
 - Always call explain_why to render each recommendation's reason in plain
   Bahasa Malaysia -- put that exact text in reason_ms.
 - Log every deferral with its cause in defer_cause.
@@ -85,7 +100,7 @@ def build_root_agent(
         kwargs["after_tool_callback"] = tool_logger.after_tool
 
     return Agent(
-        name="huluhilir_root",
+        name="pepperdex_root",
         description="Router and arbitrator for pepper disease management on one farm.",
         model=get_adk_model(),
         instruction=ROOT_INSTRUCTION,

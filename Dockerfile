@@ -8,8 +8,19 @@
 FROM python:3.11-slim
 WORKDIR /app
 
+# sentence-transformers (knowledge-base search) depends on PyTorch. A plain
+# `pip install` on Linux pulls the multi-GB CUDA build -- slow builds, slow
+# cold starts, and more RAM than the service has. Cloud Run has no GPU, so the
+# CPU wheel is installed first and the requirements then reuse it.
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Bake the embedding model into the image. Otherwise every cold start
+# downloads it from Hugging Face before the Advisor can search anything.
+ENV HF_HOME=/app/.hf-cache
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 COPY backend/ .
 COPY classifier/best-model/ ./classifier/best-model/

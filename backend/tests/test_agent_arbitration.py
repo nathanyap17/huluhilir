@@ -4,7 +4,7 @@ spray Thursday" with defer_cause="rainfast" logged.'
 This is a LIVE test against real Ollama (qwen2.5:14b, EXP-5's locked model) --
 not mocked. It is inherently less deterministic than the rest of the suite:
 a local 14B model's exact tool-calling trajectory and wording can vary
-between runs. What's asserted is the STRUCTURAL guarantee the huluhilir-rules
+between runs. What's asserted is the STRUCTURAL guarantee the pepperdex-rules
 skill actually requires (tools_called is populated, no treatment is invented
 outside get_treatment's results, a defer is logged with a cause when rain
 falls inside the rainfast window) -- not exact English/Malay wording, which
@@ -17,10 +17,11 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.agent.runner import run_root_agent
+from app.agent.runner import _extract_risk_assessments, run_root_agent
 from app.models.agent import Recommendation
 from app.models.base import Base
 from app.models.core import Block, Farm
+from app.models.diagnosis import RiskAssessment
 from app.tools.weather import get_weather
 from seed.seed import seed_demo_farm, seed_speech, seed_treatments
 
@@ -88,7 +89,7 @@ async def test_arbitration_defers_spray_and_prioritises_drainage_when_rain_is_im
     assert "get_weather" in tool_names
 
     # 2. Every recommendation's treatment_id (if any) must come from the
-    #    seeded rules table -- never invented (huluhilir-rules skill §1).
+    #    seeded rules table -- never invented (pepperdex-rules skill §1).
     seeded_treatment_ids = {"metalaxyl_drench", "fosetyl_al_spray", "bordeaux_mixture",
                              "trichoderma_biocontrol", "clear_drainage", "remove_infected_vine"}
     recs = (await session.execute(select(Recommendation).where(Recommendation.run_id == agent_run.run_id))).scalars().all()
@@ -108,3 +109,60 @@ async def test_arbitration_defers_spray_and_prioritises_drainage_when_rain_is_im
         "recommendation given imminent rain -- got: "
         f"{[(r.action_type, r.defer_cause) for r in recs]}"
     )
+
+    # 4. 🔄 v2 -- compute_spread's actual result must be persisted to
+    # risk_assessments, not just used in-memory and discarded (Phase C: this
+    # table had zero writers anywhere before app/agent/runner.py's
+    # _extract_risk_assessments, so the §9.2 drawer had nothing to read).
+    if "compute_spread" in tool_names:
+        risk_rows = (
+            await session.execute(select(RiskAssessment).where(RiskAssessment.run_id == agent_run.run_id))
+        ).scalars().all()
+        assert risk_rows, "compute_spread ran but no risk_assessments rows were persisted"
+        for row in risk_rows:
+            assert row.is_estimate is True
+            assert 0.0 <= row.risk_score <= 1.0
+
+
+def test_extract_risk_assessments_reads_the_actual_compute_spread_result():
+    """Pure unit test, no LLM needed -- exercises the parsing logic directly
+    against a synthetic tools_called entry shaped like the real one
+    ToolCallLogger.after_tool produces."""
+    calls = [
+        {
+            "name": "compute_spread",
+            "args": {
+                "source_block_id": "blk_top",
+                "source_class": "collar_lesion",
+                "rainfall_7d_mm": 12.5,
+                "forecast_7d_mm": 30.0,
+                "elevation_tier": "minimal",
+            },
+            "_raw_result": {
+                "source_block_id": "blk_top",
+                "is_estimate": True,
+                "results": [
+                    {"block_id": "blk_mid", "risk": 0.6, "risk_band": "alerted",
+                     "eta_days": 3, "path": ["blk_top", "blk_mid"], "confidence": 0.7},
+                    {"block_id": "blk_bottom", "risk": 0.3, "risk_band": "protected",
+                     "eta_days": 6, "path": ["blk_top", "blk_mid", "blk_bottom"], "confidence": 0.6},
+                ],
+            },
+        },
+        {"name": "get_weather", "args": {}, "_raw_result": {}},  # must be ignored
+    ]
+
+    rows = _extract_risk_assessments(calls, run_id="run_1", cycle_id="cycle_1")
+
+    assert len(rows) == 2
+    by_block = {r.block_id: r for r in rows}
+    assert by_block["blk_mid"].risk_score == 0.6
+    assert by_block["blk_mid"].risk_band == "alerted"
+    assert by_block["blk_mid"].eta_days == 3
+    assert by_block["blk_mid"].source_block_id == "blk_top"
+    assert by_block["blk_mid"].rainfall_7d_mm == 12.5
+    assert by_block["blk_mid"].forecast_7d_mm == 30.0
+    assert by_block["blk_mid"].elevation_tier_used == "minimal"
+    assert by_block["blk_mid"].run_id == "run_1"
+    assert by_block["blk_mid"].cycle_id == "cycle_1"
+    assert by_block["blk_mid"].is_estimate is True

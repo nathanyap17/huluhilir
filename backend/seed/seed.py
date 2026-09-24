@@ -57,10 +57,19 @@ async def seed_treatments(session):
 
 async def seed_knowledge(session):
     data = load("knowledge_docs.json")
+    
+    # Lazy-load the embedding model so it doesn't slow down imports for non-seeding tasks
+    from sentence_transformers import SentenceTransformer
+    model = SentenceTransformer("all-MiniLM-L6-v2")
+    
     for d in data["docs"]:
         exists = await session.get(KnowledgeDoc, d["doc_id"])
         if exists:
             continue
+            
+        text_to_embed = f"{d['title']}\n{d['content']}"
+        embedding = model.encode(text_to_embed).tolist()
+        
         session.add(KnowledgeDoc(
             doc_id=d["doc_id"],
             namespace=d["namespace"],
@@ -68,6 +77,7 @@ async def seed_knowledge(session):
             publisher=d.get("publisher"),
             chunk_index=d["chunk_index"],
             content=d["content"],
+            embedding=embedding,
             citation=d["citation"],
         ))
     print(f"  knowledge_docs: {len(data['docs'])}")
@@ -110,10 +120,76 @@ async def seed_demo_farm(session):
     data = load("demo_farm.json")
 
     existing_farm = (await session.execute(
-        select(Farm).where(Farm.name == data["farm"]["name"])
+        select(Farm).where(Farm.name.in_([data["farm"]["name"], "Kebun Demo HuluHilir", "Kebun Demo PepperDex"]))
     )).scalar_one_or_none()
+    
+    from app.models.agent import AgentRun, Recommendation
+    from app.models.diagnosis import RiskAssessment
+    from app.ids import new_ulid
+    from app.models.base import now_kuching
+
     if existing_farm:
-        print("  demo farm already seeded, skipping")
+        # v2 rename: a DB seeded under the old brand shows "Kebun Demo
+        # HuluHilir" to everyone who taps "Try the demo farm". Rename the row
+        # in place (same farm_id, same data) -- local and Cloud SQL alike, on
+        # their next startup; no connection settings change.
+        if existing_farm.name != data["farm"]["name"]:
+            print(f"  demo farm: renamed '{existing_farm.name}' -> '{data['farm']['name']}'")
+            existing_farm.name = data["farm"]["name"]
+        # Check if recommendations and risk_assessments exist for this farm's blocks
+        existing_risk = (await session.execute(
+            select(RiskAssessment).join(Block, RiskAssessment.block_id == Block.block_id)
+            .where(Block.farm_id == existing_farm.farm_id)
+        )).scalars().first()
+
+        if not existing_risk:
+            blocks = (await session.execute(
+                select(Block).where(Block.farm_id == existing_farm.farm_id).order_by(Block.elevation_rank)
+            )).scalars().all()
+            if blocks:
+                run_id = new_ulid()
+                session.add(AgentRun(
+                    run_id=run_id,
+                    farm_id=existing_farm.farm_id,
+                    trigger="manual",
+                    llm_model="seed",
+                    completed_at=now_kuching(),
+                    status="ok",
+                ))
+                session.add(Recommendation(
+                    run_id=run_id,
+                    block_id=blocks[0].block_id,
+                    action_type="spray",
+                    recommended_at=now_kuching(),
+                    reason_ms="Semburan racun kulat diperlukan untuk mencegah penyebaran Penyakit Reput Akar.",
+                    speech_template_id="_adhoc",
+                    sequence=0,
+                ))
+                session.add(RiskAssessment(
+                    run_id=run_id,
+                    block_id=blocks[0].block_id,
+                    source_block_id=blocks[0].block_id,
+                    risk_score=0.85,
+                    risk_band="high",
+                    confidence=0.92,
+                    eta_days=3,
+                    rainfall_7d_mm=45.2,
+                    forecast_7d_mm=22.0,
+                    elevation_tier_used="minimal",
+                    model_version="l2_deterministic_v1",
+                    computed_at=now_kuching(),
+                    is_estimate=True,
+                ))
+                print("  demo farm: backfilled missing mock Recommendation and RiskAssessment")
+        else:
+            print("  demo farm already seeded, skipping")
+
+        # (Removed 2026-09-23) A backfill used to run here on EVERY startup that
+        # gave any recommendation on ANY farm -- real farmers' included -- a
+        # constant risk row (0.85 / 0.92 / 3 days / 45.2 mm). That is why the
+        # Home bento tiles never changed between diagnoses, and it presented
+        # invented numbers as spread-model output (rule 8). Real rows now come
+        # only from compute_spread (app/agent/runner.py _deterministic_spread).
         return
 
     user = User(**data["user"])
@@ -123,7 +199,6 @@ async def seed_demo_farm(session):
     # Demo farm represents an already-onboarded farm ready for diagnosis
     # (PLAN.md Block F "seed demo farm, known-good state") -- setup_completed_at
     # set so SetupCoordinator short-circuits immediately rather than looping.
-    from app.models.base import now_kuching
     farm = Farm(user_id=user.user_id, setup_completed_at=now_kuching(), **data["farm"])
     session.add(farm)
     await session.flush()
@@ -168,7 +243,43 @@ async def seed_demo_farm(session):
                 farmer_confirmed=True,
             ))
 
+    # Add a mock Recommendation and RiskAssessment to populate the Priority Action Card bento tiles
+    run_id = new_ulid()
+    session.add(AgentRun(
+        run_id=run_id,
+        farm_id=farm.farm_id,
+        trigger="manual",
+        llm_model="seed",
+        completed_at=now_kuching(),
+        status="ok",
+    ))
+    session.add(Recommendation(
+        run_id=run_id,
+        block_id=blocks[0].block_id,
+        action_type="spray",
+        recommended_at=now_kuching(),
+        reason_ms="Semburan racun kulat diperlukan untuk mencegah penyebaran Penyakit Reput Akar.",
+        speech_template_id="_adhoc",
+        sequence=0,
+    ))
+    session.add(RiskAssessment(
+        run_id=run_id,
+        block_id=blocks[0].block_id,
+        source_block_id=blocks[0].block_id,
+        risk_score=0.85,
+        risk_band="high",
+        confidence=0.92,
+        eta_days=3,
+        rainfall_7d_mm=45.2,
+        forecast_7d_mm=22.0,
+        elevation_tier_used="minimal",
+        model_version="l2_deterministic_v1",
+        computed_at=now_kuching(),
+        is_estimate=True,
+    ))
+
     print(f"  demo farm: 1 user, 1 farm, {len(blocks)} blocks, flow edges derived (k-NN k={K})")
+
 
 
 async def main():

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "google_calendar": {
+      "command": "python",
+      "args": ["-m", "app.mcp.google_calendar_server"],
+      "env": {
+        "TOKEN_FILE": "token.json"
+      },
+      "_note": "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_REDIRECT_URI are inherited from backend/.env (never commit them here)."
+    }
+  }
+}

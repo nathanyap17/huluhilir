@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import SessionLocal, init_db
-from app.routers import agent, dashboard, diagnosis, health, media, setup, speech, tools
+from app.routers import agent, calendar, dashboard, diagnosis, health, media, setup, speech, tools
 
 
 @asynccontextmanager
@@ -16,6 +16,7 @@ async def lifespan(app: FastAPI):
     # the documented cloud behaviour (docs/CLAUDE.md § Two deployment
     # targets), not something a separate init job handles. A no-op locally
     # once the dev DB is already seeded.
+    from app.tools.knowledge_fts import rebuild_fts_index
     from seed.seed import seed_demo_farm, seed_knowledge, seed_speech, seed_treatments
 
     async with SessionLocal() as session:
@@ -24,11 +25,17 @@ async def lifespan(app: FastAPI):
         await seed_speech(session)
         await seed_demo_farm(session)
         await session.commit()
+        # 🔄 v2 -- keeps knowledge_docs_fts in sync with knowledge_docs. Only
+        # on SQLite (see app/db.py's init_db for why); Postgres just skips
+        # hybrid search's lexical half.
+        if session.bind.dialect.name == "sqlite":
+            await rebuild_fts_index(session)
+            await session.commit()
     yield
 
 
 app = FastAPI(
-    title="HuluHilir API",
+    title="PepperDex API",
     description="Terrain-aware agentic early warning for Phytophthora foot rot in Sarawak black pepper.",
     version="0.1.0",
     lifespan=lifespan,
@@ -51,3 +58,4 @@ app.include_router(media.router)
 app.include_router(diagnosis.router)
 app.include_router(dashboard.router)
 app.include_router(speech.router)
+app.include_router(calendar.router)

@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, now_kuching
+from app.models.base import KuchingDateTime, Base, now_kuching
 
 
 class TreatmentOption(Base):
@@ -32,7 +32,7 @@ class TreatmentApplication(Base):
     application_id: Mapped[str] = mapped_column(String(26), primary_key=True)
     block_id: Mapped[str] = mapped_column(ForeignKey("blocks.block_id"))
     treatment_id: Mapped[str] = mapped_column(ForeignKey("treatment_options.treatment_id"))
-    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    applied_at: Mapped[datetime] = mapped_column(KuchingDateTime())
     followed_recommendation: Mapped[Optional[bool]] = mapped_column(Boolean)
     recommendation_id: Mapped[Optional[str]] = mapped_column(String(26))
     rain_within_rainfast: Mapped[Optional[bool]] = mapped_column(Boolean)

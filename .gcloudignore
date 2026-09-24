@@ -1,0 +1,35 @@
+# What gcloud uploads for 'gcloud run deploy --source .' (it reads THIS file,
+# not .dockerignore). Kept in step with .dockerignore -- secrets and local
+# state must never leave the laptop; Cloud Run gets them from Secret Manager.
+.gcloudignore
+.gitignore
+.git/
+flutter_app/
+docs/
+sandbox/
+*.md
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/huluhilir.db
+backend/media/
+classifier/huluhilir_l1_baseline.onnx
+classifier/*.md
+classifier/*.log
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/token.json
+backend/calendar_owner.json
+backend/*.db
+backend/*.db.bak*
+backend/huluhilir.db.bak-*
+**/.env
+**/token.json
+frontend-rn/
+landing/
+public_site/
+tts/
+pitch-and-design/
+.claude/

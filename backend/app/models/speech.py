@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import JSON, Boolean, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, now_kuching
+from app.models.base import KuchingDateTime, Base, now_kuching
 
 
 class SpeechTemplate(Base):
@@ -42,4 +42,4 @@ class AudioCache(Base):
     audio_path: Mapped[str] = mapped_column(String(255))
     duration_ms: Mapped[int] = mapped_column(Integer)
     seed: Mapped[int] = mapped_column(Integer)
-    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_kuching)
+    generated_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)

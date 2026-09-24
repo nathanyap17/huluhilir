@@ -3,12 +3,11 @@
     "public": "public_site",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
-      { "source": "/app/**", "destination": "/app/index.html" },
       { "source": "**", "destination": "/index.html" }
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|wasm)",
+        "source": "**/*.@(js|css)",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
       },
       {
@@ -16,8 +15,16 @@
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       },
       {
-        "source": "/app/index.html",
+        "source": "/version.json",
         "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/pepperdex-latest.apk",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" },
+          { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+          { "key": "Content-Disposition", "value": "attachment; filename=\"pepperdex-latest.apk\"" }
+        ]
       }
     ]
   }

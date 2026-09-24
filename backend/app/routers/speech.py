@@ -9,7 +9,7 @@ agent output directly instead.
 
 **This is output only.** Nothing here transcribes anything; there is no ASR
 endpoint in this codebase and adding one would break a submitted proposal
-commitment (huluhilir-rules §2).
+commitment (pepperdex-rules §2).
 
 Rule #7 (every user-facing string carries a `speech_template_id`) still
 holds and is not weakened by this: templates remain the canonical source of

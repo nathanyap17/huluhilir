@@ -28,6 +28,20 @@ router = APIRouter(tags=["diagnosis"])
 # (docs/PROJECT_SPEC.md §6 "worst-class-wins").
 _HARMED_CLASSES = {"collar_lesion", "defoliation_wilt"}
 _ALERTED_CLASSES = {"foliar_yellowing"}
+_HEALTHY_CLASSES = {"healthy_leaf", "healthy_collar"}
+
+
+def _state_from_diagnosis(predicted_class: str, below_threshold: bool) -> str | None:
+    """Block state this one diagnosis is evidence for, or None when it is not
+    evidence at all (unrelated/unknown photo, or a healthy call the model is
+    unsure of -- never downgrade a block on a low-confidence "healthy")."""
+    if predicted_class in _HARMED_CLASSES:
+        return "harmed"
+    if predicted_class in _ALERTED_CLASSES:
+        return "alerted"
+    if predicted_class in _HEALTHY_CLASSES and not below_threshold:
+        return "protected"
+    return None
 
 
 class StartCycleRequest(BaseModel):
@@ -90,7 +104,7 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     Returns the diagnosis alongside a `mismatch_flag` when the model's
     predicted body part contradicts `capture_target` -- the UI must prompt a
     RETAKE in that case and NOT treat it as a completed check
-    (huluhilir-rules skill §9). A mismatched or `unrelated` photo deliberately
+    (pepperdex-rules skill §9). A mismatched or `unrelated` photo deliberately
     does not advance `blocks_captured`.
     """
     # force_accept is a request-level decision, not a stored column -- it is
@@ -108,37 +122,13 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     if not local_path.is_file():
         raise HTTPException(400, f"image not found on server: {req.image_uri}")
 
-    # Backend is configuration, not a code branch anyone downstream sees:
-    # both paths return the same six-class DiagnoseLeafResult, and neither can
-    # reach the rules table (huluhilir-rules §2).
-    if settings.classifier_backend == "gemini":
-        from app.tools.diagnose_gemini import diagnose_leaf_gemini
-
-        try:
-            result = await diagnose_leaf_gemini(
-                observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
-            )
-        except Exception as exc:
-            # A vision call needs the network and can fail; the trained model
-            # is local and always available, so it is the fallback rather than
-            # the request erroring out on a farmer mid-cycle.
-            #
-            # The reason is printed rather than logged: uvicorn's logging
-            # config on Cloud Run does not propagate module loggers to stdout,
-            # which made an earlier failure invisible and cost hours of
-            # guessing. print() reaches Cloud Logging reliably.
-            print(
-                f"[classifier] gemini backend failed, falling back to CNN: "
-                f"{type(exc).__name__}: {str(exc)[:400]}",
-                flush=True,
-            )
-            result = diagnose_leaf(
-                observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
-            )
-    else:
-        result = diagnose_leaf(
-            observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
-        )
+    # v2: `.onnx` is the sole primary path. No Gemini Vision branch exists
+    # anywhere in the fallback chain -- docs/PROJECT_SPEC.md §3 L1, PLAN.md §3.
+    # If `.onnx` fails to load, that path is identical to low-confidence:
+    # advise physical inspection (app/tools/diagnose.py).
+    result = diagnose_leaf(
+        observation.observation_id, str(local_path), CaptureTarget(req.capture_target)
+    )
 
     diagnosis = Diagnosis(
         observation_id=observation.observation_id,
@@ -174,7 +164,7 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
         ).scalars().all())
 
     # The farmer can always override. They are standing in front of the vine
-    # and the model is not (huluhilir-rules section 3 is the same principle).
+    # and the model is not (pepperdex-rules section 3 is the same principle).
     forced = bool(req.force_accept)
 
     # After MAX_RETAKES rejected attempts the photo is accepted anyway, with
@@ -191,14 +181,26 @@ async def create_observation(req: ObservationCreate, session: AsyncSession = Dep
     prior_last_diagnosis_id = block.last_diagnosis_id if block is not None else None
 
     if block is not None and counts_as_check:
+        # First accepted photo of this block in THIS cycle? Then the new
+        # diagnosis replaces whatever state earlier cycles left behind.
+        first_in_cycle = True
+        if prior_last_diagnosis_id and req.cycle_id:
+            prior = await session.get(Diagnosis, prior_last_diagnosis_id)
+            first_in_cycle = prior is None or prior.cycle_id != req.cycle_id
+
         block.last_diagnosis_id = diagnosis.diagnosis_id
-        # Worst-class-wins: never downgrade a block within a cycle.
-        if result.predicted_class in _HARMED_CLASSES:
-            block.current_state = "harmed"
-            block.state_changed_at = now_kuching()
-        elif result.predicted_class in _ALERTED_CLASSES and block.current_state == "protected":
-            block.current_state = "alerted"
-            block.state_changed_at = now_kuching()
+        new_state = _state_from_diagnosis(result.predicted_class, result.below_threshold)
+        if new_state is not None:
+            # docs/PROJECT_SPEC.md "Block state model", rule 1: a direct
+            # diagnosis always overrides -- including DOWNWARD. Previously a
+            # block could only ever escalate, so one harmed diagnosis stuck
+            # forever and a healthy re-check changed nothing (2026-09-24).
+            # Within one cycle, worst-class-wins (a retake never downgrades).
+            rank = {"protected": 0, "alerted": 1, "harmed": 2, "overrun": 3}
+            if first_in_cycle or rank[new_state] > rank.get(block.current_state, 0):
+                if block.current_state != new_state:
+                    block.current_state = new_state
+                    block.state_changed_at = now_kuching()
 
     if req.cycle_id and counts_as_check:
         cycle = await session.get(DiagnosisCycle, req.cycle_id)

@@ -26,6 +26,16 @@ class UserOut(UserCreate):
     created_at: datetime
 
 
+class UserUpdate(ORMModel):
+    """Settings screen: only what a farmer may change after setup."""
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    language_pref: Optional[Language] = None
+
+
+class FarmUpdate(ORMModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class FarmCreate(ORMModel):
     user_id: str
     name: str = Field(max_length=80)

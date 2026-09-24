@@ -4,7 +4,7 @@
 has verified these strings. That matters more here than in a typical app: the
 project's whole reason for storing voice labels as audio rather than
 transcribing them is that off-the-shelf language tooling for Iban is not
-dependable (huluhilir-rules section 1), and it would be incoherent to then
+dependable (pepperdex-rules section 1), and it would be incoherent to then
 pass unverified machine Iban off as trustworthy advice.
 
 So the contract is:

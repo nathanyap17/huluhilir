@@ -1,6 +1,6 @@
 """End-to-end setup flow + the non-negotiable rules the setup endpoints must
 honour. These are proposal commitments, so they're tested structurally rather
-than trusted to code review (huluhilir-rules skill § "Checklist").
+than trusted to code review (pepperdex-rules skill § "Checklist").
 """
 import pytest
 import pytest_asyncio
@@ -126,7 +126,7 @@ async def test_resolve_elevation_builds_an_acyclic_graph(client):
 
 @pytest.mark.asyncio
 async def test_farmer_answer_overrides_barometer_and_logs_the_conflict(client):
-    """huluhilir-rules skill §3 -- the farmer ALWAYS wins, and the
+    """pepperdex-rules skill §3 -- the farmer ALWAYS wins, and the
     disagreement is recorded rather than silently resolved."""
     http, session = client
     # Barometer says block 1 is LOWER than block 2 (1.0 vs 5.0)...
@@ -147,7 +147,7 @@ async def test_farmer_answer_overrides_barometer_and_logs_the_conflict(client):
 
 @pytest.mark.asyncio
 async def test_dashboard_works_with_zero_photographs(client):
-    """huluhilir-rules skill §6 -- a stated proposal claim. The rain pulse and
+    """pepperdex-rules skill §6 -- a stated proposal claim. The rain pulse and
     Advisor must render on a farm with no observations, no diagnosis cycle,
     and no agent run."""
     http, _ = client
@@ -164,13 +164,42 @@ async def test_dashboard_works_with_zero_photographs(client):
     assert data["rain_pulse"] is not None
     assert data["advisor"] is not None
     assert data["top_action"] is None  # no agent run has happened
+    assert data["drawer"] is None  # no risk_assessments row exists without a run either
     assert len(data["terrain_nodes"]) == 3
     assert data["pending_neighbour_alerts"] == 0
 
 
 @pytest.mark.asyncio
+async def test_dashboard_rain_pulse_is_seven_days(client):
+    """🔄 v2 -- docs/PROJECT_SPEC.md §9.1/§10: forecast_days[], not a single
+    collapsed next-pulse object."""
+    http, _ = client
+    farm, _ = await _walk_three_blocks(http)
+
+    data = (await http.get(f"/farms/{farm['farm_id']}/dashboard")).json()
+    forecast_days = data["rain_pulse"]["forecast_days"]
+    assert len(forecast_days) > 0
+    for day in forecast_days:
+        assert set(day.keys()) == {"date", "rainfall_mm", "is_pulse", "is_cached_fallback"}
+        assert day["is_pulse"] == (day["rainfall_mm"] >= 5.0)
+
+
+@pytest.mark.asyncio
+async def test_dashboard_terrain_nodes_carry_rotated_coordinates(client):
+    """🔄 v2 -- §9.6/§10 BlockNode.x_rot_m/y_rot_m, backend-computed and never
+    persisted (docs/DATA_MODEL.md §5)."""
+    http, _ = client
+    farm, _ = await _walk_three_blocks(http)
+
+    data = (await http.get(f"/farms/{farm['farm_id']}/dashboard")).json()
+    for node in data["terrain_nodes"]:
+        assert isinstance(node["x_rot_m"], (int, float))
+        assert isinstance(node["y_rot_m"], (int, float))
+
+
+@pytest.mark.asyncio
 async def test_no_land_boundary_field_is_accepted(client):
-    """huluhilir-rules skill §4 -- NCR land is legally sensitive; only
+    """pepperdex-rules skill §4 -- NCR land is legally sensitive; only
     elevation_rank ordering and point centroids are ever stored."""
     http, _ = client
     farm, _ = await _walk_three_blocks(http)

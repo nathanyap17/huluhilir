@@ -18,3 +18,24 @@ backend/media/
 classifier/huluhilir_l1_baseline.onnx
 classifier/*.md
 classifier/*.log
+
+# Secrets and local state -- NEVER in the build upload or the image. Cloud Run
+# gets these from Secret Manager / env vars (deploy-cloud.sh), not files.
+backend/.env
+backend/.env.*
+!backend/.env.example
+backend/token.json
+backend/calendar_owner.json
+backend/*.db
+backend/*.db.bak*
+backend/huluhilir.db.bak-*
+**/.env
+**/token.json
+
+# Not part of the backend image.
+frontend-rn/
+landing/
+public_site/
+tts/
+pitch-and-design/
+.claude/

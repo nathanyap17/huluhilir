@@ -24,8 +24,14 @@ class KnowledgeDocOut(ORMModel):
 
 class RetrievalQuery(ORMModel):
     query: str
+    # Retrieval explains *why*; it never decides *what* (pepperdex-rules
+    # skill §1) -- authoritative excluded by default so a caller that
+    # forgets to override namespaces still can't surface a dose/product/
+    # timing. The one real caller (advisor_agent.py) already passes its own
+    # ["advisory", "local"] explicitly; this default is the safe fallback
+    # for anything written later that doesn't.
     namespaces: list[KnowledgeNamespace] = Field(
-        default_factory=lambda: [KnowledgeNamespace.authoritative, KnowledgeNamespace.advisory]
+        default_factory=lambda: [KnowledgeNamespace.advisory, KnowledgeNamespace.local]
     )
     top_k: int = 5
 

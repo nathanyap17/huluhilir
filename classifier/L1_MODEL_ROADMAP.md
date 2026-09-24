@@ -2,7 +2,7 @@
 
 > **Layer:** L1 · CNN Diagnosis · **Owner:** Nathan
 > Locked decisions live in `docs/PROJECT_SPEC.md` §3 L1. This file is the *how*.
-> Non-negotiables in `.claude/skills/huluhilir-rules/SKILL.md` §9.
+> Non-negotiables in `.claude/skills/pepperdex-rules/SKILL.md` §9.
 
 ---
 

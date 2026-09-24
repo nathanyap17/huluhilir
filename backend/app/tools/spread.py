@@ -2,7 +2,7 @@
 
 docs/PROJECT_SPEC.md §3 L2. NOT machine learning: no labelled transmission-
 timing dataset exists. Same inputs must always give the same outputs
-(huluhilir-rules skill §7) and the graph is acyclic by construction
+(pepperdex-rules skill §7) and the graph is acyclic by construction
 (from.elevation_rank < to.elevation_rank), so a plain shortest-path search
 never loops.
 """
@@ -21,6 +21,12 @@ from app.schemas.spread import (
     FarmGraphNode,
     SpreadResultItem,
 )
+
+# Not a trained checkpoint (this is a deterministic graph algorithm, not ML --
+# pepperdex-rules skill §7), but risk_assessments.model_version still needs a
+# value to trace which VERSION of the algorithm produced a given row if the
+# weighting formula ever changes.
+SPREAD_MODEL_VERSION = "l2_deterministic_v1"
 
 
 async def load_farm_graph(session: AsyncSession, farm_id: str) -> FarmGraph:

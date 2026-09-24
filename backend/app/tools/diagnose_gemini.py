@@ -10,7 +10,7 @@ See docs/BUILD_LOG.md.
 
 **What this does NOT change.** The six-class contract is unchanged, and the
 classifier still only ever produces a *class*. Dose, product and timing come
-from the rules table and nowhere else (huluhilir-rules §2) — swapping the
+from the rules table and nowhere else (pepperdex-rules §2) — swapping the
 vision backend cannot reach them, because this module has no access to them.
 
 **On reporting accuracy.** The 0.934 figure belongs to the CNN, measured on

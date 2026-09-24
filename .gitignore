@@ -5,6 +5,11 @@ venv/
 *.db
 *.db-journal
 .env
+token.json
+backend/token.json
+backend/calendar_owner.json
+backend/huluhilir.db.bak-*
+*.token.json
 backend/data/
 tts/__pycache__/
 
@@ -39,3 +44,4 @@ flutter_app/build/
 public_site/
 landing/dist/
 landing/node_modules/
+backend/media_to_upload.txt

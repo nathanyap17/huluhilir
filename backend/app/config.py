@@ -8,6 +8,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./huluhilir.db"
     litellm_model: str = "ollama_chat/qwen2.5:14b"
+    # Upper bound for one agent LLM turn; past it the runner uses the
+    # deterministic rules-table fallback (env AGENT_TIMEOUT_S).
+    agent_timeout_s: float = 180
     ollama_api_base: str = "http://localhost:11434"
     api_base_url: str = "http://localhost:8000"
     tts_base_url: str = "http://localhost:8001"

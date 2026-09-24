@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, now_kuching, ulid_pk
+from app.models.base import KuchingDateTime, Base, now_kuching, ulid_pk
 
 
 class AgentRun(Base):
@@ -23,8 +23,8 @@ class AgentRun(Base):
     subagent_invoked: Mapped[Optional[str]] = mapped_column(String(40))
     llm_model: Mapped[str] = mapped_column(String(40))
     token_count: Mapped[Optional[int]] = mapped_column(Integer)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_kuching)
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
     status: Mapped[str] = mapped_column(String(12), default="ok")
 
 
@@ -39,12 +39,12 @@ class Recommendation(Base):
     sequence: Mapped[int] = mapped_column(Integer)
     action_type: Mapped[str] = mapped_column(String(20))
     treatment_id: Mapped[Optional[str]] = mapped_column(ForeignKey("treatment_options.treatment_id"))
-    recommended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    window_start: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    window_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    recommended_at: Mapped[datetime] = mapped_column(KuchingDateTime())
+    window_start: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
+    window_end: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
     reason_ms: Mapped[str] = mapped_column(String(300))
     speech_template_id: Mapped[Optional[str]] = mapped_column(String(30))
-    deferred_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    deferred_from: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
     defer_cause: Mapped[Optional[str]] = mapped_column(String(20))
     confidence_note: Mapped[Optional[str]] = mapped_column(String(120))
 
@@ -61,8 +61,23 @@ class Alert(Base):
     risk_band_shared: Mapped[str] = mapped_column(String(10))
     status: Mapped[str] = mapped_column(String(10), default="draft")
     approved_by_farmer: Mapped[bool] = mapped_column(Boolean, default=False)
-    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    approved_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
+    sent_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
+
+
+class CouncilDebate(Base):
+    """🔄 v2. `ranked_output` is deliberately dose-less — see
+    app/schemas/council.py's TriageRanking. The transcript is demo evidence,
+    not just an internal record (docs/PROJECT_SPEC.md §3 L4)."""
+
+    __tablename__ = "council_debates"
+
+    debate_id: Mapped[str] = ulid_pk()
+    run_id: Mapped[str] = mapped_column(ForeignKey("agent_runs.run_id"))
+    block_ids_considered: Mapped[list] = mapped_column(JSON)
+    transcript: Mapped[list] = mapped_column(JSON)
+    ranked_output: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
 
 
 class AdvisorVerdict(Base):
@@ -75,9 +90,32 @@ class AdvisorVerdict(Base):
     reason_ms: Mapped[str] = mapped_column(String(300))
     suggested_date: Mapped[Optional[date]] = mapped_column(Date)
     days_until_recommended: Mapped[Optional[int]] = mapped_column(Integer)
-    last_cycle_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    last_cycle_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
     last_cycle_result: Mapped[Optional[str]] = mapped_column(String(20))
     days_since_last_cycle: Mapped[int] = mapped_column(Integer)
     rain_since_last_cycle_mm: Mapped[float] = mapped_column(Float)
     blocks_all_protected: Mapped[bool] = mapped_column(Boolean)
-    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_kuching)
+    computed_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+
+
+class CalendarEventProposal(Base):
+    """Rule 13 Guardrail for autonomous calendar deployment."""
+
+    __tablename__ = "calendar_event_proposals"
+
+    proposal_id: Mapped[str] = ulid_pk()
+    farm_id: Mapped[str] = mapped_column(ForeignKey("farms.farm_id"))
+    run_id: Mapped[Optional[str]] = mapped_column(ForeignKey("agent_runs.run_id"))
+    recommendation_id: Mapped[Optional[str]] = mapped_column(ForeignKey("recommendations.recommendation_id"))
+    title: Mapped[str] = mapped_column(String(120))
+    start_time: Mapped[datetime] = mapped_column(KuchingDateTime())
+    end_time: Mapped[datetime] = mapped_column(KuchingDateTime())
+    description: Mapped[str] = mapped_column(Text)
+    location: Mapped[str] = mapped_column(String(120), default="Ladang Lada (Pepper Block)")
+    status: Mapped[str] = mapped_column(String(20), default="pending_approval")  # pending_approval, approved, deployed, rejected
+    approved_by_farmer: Mapped[bool] = mapped_column(Boolean, default=False)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
+    google_event_id: Mapped[Optional[str]] = mapped_column(String(120))
+    html_link: Mapped[Optional[str]] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+

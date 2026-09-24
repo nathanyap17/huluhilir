@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# Cloud Run deploy — stretch goal, gated at 17:00 on build day (docs/PLAN.md).
+# Cloud Run deploy of the v2 PepperDex backend into the EXISTING service
+# (huluhilir-api, project sfws-aicc-workspace-1 -- identifiers kept on purpose,
+# CLAUDE.md). Re-running it rolls a new revision behind the same URL.
 # Never run this to fix a broken LOCAL path: LOCAL must remain runnable at all
-# times, and this script never touches it. Switching is configuration only —
-# see docs/CLAUDE.md § Two deployment targets.
+# times, and this script never touches it. Switching is configuration only.
+#
+# One-time secrets this expects (create once, see WORKSPACE_SETUP.md
+# "Cloud deploy"): huluhilir-db-url (exists), pepperdex-google-client-id,
+# pepperdex-google-client-secret, pepperdex-google-token.
 set -euo pipefail
 
 PROJECT_ID="${GCP_PROJECT_ID:-sfws-aicc-workspace-1}"
@@ -51,8 +56,14 @@ MEDIA_BUCKET="${MEDIA_BUCKET:-huluhilir-media}"
 # wipes any variable not named here. That is exactly how the classifier
 # reverted from gemini to the CNN on the deploy after it was switched by hand
 # -- it looked like a model regression and was a deployment one.
-CLASSIFIER_BACKEND="${CLASSIFIER_BACKEND:-gemini}"
-VISION_MODEL_NAME="${VISION_MODEL_NAME:-gemini-2.5-flash}"
+# v2: the .onnx CNN is the SOLE classifier (CLAUDE.md -- Gemini Vision was
+# removed, not demoted). The old default here was "gemini".
+CLASSIFIER_BACKEND="${CLASSIFIER_BACKEND:-onnx}"
+
+# Admin farm (owns the Google Calendar link). Same farm_id as local -- the
+# farm is copied to Cloud SQL with its id (backend/scripts/copy_farm_to_cloud.py).
+CALENDAR_OWNER_FARM_ID="${CALENDAR_OWNER_FARM_ID:-01M2YNGWJ9FGFBB1FP5T4T95YZ}"
+SERVICE_URL="${SERVICE_URL:-https://huluhilir-api-mfrzixfqeq-as.a.run.app}"
 
 echo "Deploying $SERVICE_NAME to Cloud Run in $REGION (project: $PROJECT_ID)"
 
@@ -60,23 +71,38 @@ echo "Deploying $SERVICE_NAME to Cloud Run in $REGION (project: $PROJECT_ID)"
 # classifier model in, which a ./backend-scoped build context cannot reach
 # (that path only worked locally via docker-compose.yml's volume mount --
 # Cloud Run has no equivalent). See docs/BUILD_LOG.md "Cloud deploy".
+# --no-cpu-throttling: a diagnosis returns immediately and the agents keep
+#   working in the background (live feed); with the default request-only CPU
+#   that work would stall between requests.
+# --max-instances 1: the live feed is held in one instance's memory.
+# --memory 2Gi: onnxruntime + the embedding model + ADK.
 gcloud run deploy "$SERVICE_NAME" \
   --source . \
   --project "$PROJECT_ID" \
   --region "$REGION" \
   --allow-unauthenticated \
   --min-instances 1 \
-  --memory 1Gi \
+  --max-instances 1 \
+  --no-cpu-throttling \
+  --memory 2Gi \
+  --cpu 1 \
+  --timeout 300 \
   --set-env-vars "LITELLM_MODEL=vertex_ai/$GEMINI_MODEL" \
   --set-env-vars "VERTEXAI_PROJECT=$PROJECT_ID" \
   --set-env-vars "VERTEXAI_LOCATION=$VERTEX_LOCATION" \
+  --set-env-vars "AGENT_TIMEOUT_S=60" \
   --set-env-vars "MEDIA_ROOT=//media" \
   --set-env-vars "CLASSIFIER_BACKEND=$CLASSIFIER_BACKEND" \
-  --set-env-vars "VISION_MODEL=vertex_ai/$VISION_MODEL_NAME" \
+  --set-env-vars "CALENDAR_OWNER_FARM_ID=$CALENDAR_OWNER_FARM_ID" \
+  --set-env-vars "TOKEN_FILE=//tmp/google/token.json" \
+  --set-env-vars "GOOGLE_REDIRECT_URI=$SERVICE_URL/api/calendar/callback" \
   --add-volume "name=media,type=cloud-storage,bucket=$MEDIA_BUCKET" \
   --add-volume-mount "volume=media,mount-path=//media" \
   --add-cloudsql-instances "$SQL_CONNECTION" \
-  --set-secrets "DATABASE_URL=$DB_URL_SECRET:latest"
+  --set-secrets "DATABASE_URL=$DB_URL_SECRET:latest" \
+  --set-secrets "GOOGLE_CLIENT_ID=pepperdex-google-client-id:latest" \
+  --set-secrets "GOOGLE_CLIENT_SECRET=pepperdex-google-client-secret:latest" \
+  --set-secrets "GOOGLE_TOKEN_JSON=pepperdex-google-token:latest"
 
 echo
 echo "Deployed. Fetching public URL:"
@@ -84,4 +110,4 @@ gcloud run services describe "$SERVICE_NAME" --project "$PROJECT_ID" --region "$
 
 echo
 echo "Verify with: curl <URL>/health"
-echo "Remember: build the cloud-target APK with --dart-define=API_BASE_URL=<URL> (docs/CLAUDE.md § Commands)."
+echo "Cloud APK: cd frontend-rn && npx eas-cli build --profile cloud --platform android"

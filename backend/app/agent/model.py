@@ -1,7 +1,7 @@
 """Model construction for both ADK agents and the raw LLM-backed tools.
 
 Switching LOCAL <-> CLOUD is configuration only (LITELLM_MODEL env var) --
-huluhilir-rules skill §11. Nothing here branches on deployment target.
+pepperdex-rules skill §11. Nothing here branches on deployment target.
 """
 import os
 
@@ -25,7 +25,7 @@ def get_adk_model() -> LiteLlm:
 async def complete_text(prompt: str, system: str | None = None) -> str:
     """Raw one-shot LiteLLM call for the LLM-backed tools (explain_why,
     draft_alert) -- these are tools, not agents: one prompt in, text out, no
-    tool-calling loop of their own (huluhilir-rules skill §4 / google-adk
+    tool-calling loop of their own (pepperdex-rules skill §4 / google-adk
     skill § "Sub-agent vs LLM-backed tool").
     """
     import litellm

@@ -1,42 +1,55 @@
 #!/usr/bin/env bash
-# Assembles the Firebase Hosting payload: the React landing page at the root,
-# the Flutter web app under /app.
+# Assembles the Firebase Hosting payload in public_site/: the PepperDex landing
+# page, plus the latest signed Android APK under a FIXED name, so the QR code
+# on the page and on the bunting never changes.
 #
-# They are built separately and staged into public_site/ rather than pointed
-# at directly, because Firebase Hosting serves exactly one directory. Nothing
-# here is committed -- public_site/ is generated, and both source trees stay
-# independently buildable.
+#   ./build-site.sh [path/to/signed.apk]      # default: $APK or C:/pdx/pepperdex-latest.apk
+#   ./build-site.sh --deploy [path]           # ...and publish (needs `firebase login`)
+#
+# public_site/ is generated and never committed. The v1 Flutter web app that
+# used to live under /app is gone on purpose: v2 is Android-only.
 set -euo pipefail
 cd "$(dirname "$0")"
 
-API_URL="${API_BASE_URL:-https://huluhilir-api-mfrzixfqeq-as.a.run.app}"
+DEPLOY=0
+if [ "${1:-}" = "--deploy" ]; then DEPLOY=1; shift; fi
+APK_SRC="${1:-${APK:-/c/pdx/pepperdex-latest.apk}}"
+PROJECT=sfws-aicc-workspace-1
 
 echo "==> landing (React + anime.js)"
 ( cd landing && npm run build )
-
-echo "==> flutter web  [API_BASE_URL=$API_URL]"
-# base href is patched into the built index.html afterwards rather than
-# passed as --base-href: Git Bash on Windows rewrites any argument that looks
-# like a Unix path, turning /app/ into "C:/Program Files/Git/app/", and the
-# resulting error names a value nobody typed. Editing the output is immune to
-# that and behaves identically on every platform.
-( cd flutter_app && flutter build web --release     --dart-define=API_BASE_URL="$API_URL" )
-
-python -c "
-import io, re, sys
-p = 'flutter_app/build/web/index.html'
-s = io.open(p, encoding='utf-8').read()
-s = re.sub(r'<base href=\"[^\"]*\">', '<base href=\"/app/\">', s)
-io.open(p, 'w', encoding='utf-8').write(s)
-print('  base href -> /app/')
-"
 
 echo "==> staging public_site/"
 rm -rf public_site
 mkdir -p public_site
 cp -r landing/dist/. public_site/
-mkdir -p public_site/app
-cp -r flutter_app/build/web/. public_site/app/
 
-echo "Staged. Deploy with:"
-echo "  npx firebase-tools deploy --only hosting --project sfws-aicc-workspace-1"
+if [ -f "$APK_SRC" ]; then
+  cp "$APK_SRC" public_site/pepperdex-latest.apk
+  # Version facts come from the APK itself, not from anything typed by hand.
+  BT="${ANDROID_BUILD_TOOLS:-/c/Users/User/AppData/Local/Android/Sdk/build-tools/36.1.0}"
+  BADGE=$("$BT/aapt2.exe" dump badging "$APK_SRC" 2>/dev/null | head -1 || true)
+  python - "$APK_SRC" "$BADGE" > public_site/version.json <<'EOF'
+import json, os, re, sys, datetime
+apk, badge = sys.argv[1], sys.argv[2]
+code = re.search(r"versionCode='(\d+)'", badge)
+name = re.search(r"versionName='([^']+)'", badge)
+built = datetime.datetime.fromtimestamp(os.path.getmtime(apk), datetime.timezone(datetime.timedelta(hours=8)))
+print(json.dumps({
+    "versionCode": int(code.group(1)) if code else None,
+    "versionName": name.group(1) if name else None,
+    "builtAt": built.isoformat(timespec="minutes"),
+    "sizeMB": round(os.path.getsize(apk) / 1e6),
+}))
+EOF
+  echo "  APK:  $(cat public_site/version.json)"
+else
+  echo "  WARNING: no APK at $APK_SRC -- the Download button will 404 until one is staged."
+fi
+
+if [ "$DEPLOY" = 1 ]; then
+  echo "==> firebase deploy (project $PROJECT)"
+  npx firebase-tools deploy --only hosting --project "$PROJECT"
+else
+  echo "Staged. Deploy with:  ./build-site.sh --deploy   (or: npx firebase-tools deploy --only hosting --project $PROJECT)"
+fi

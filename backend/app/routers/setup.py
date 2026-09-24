@@ -4,7 +4,7 @@ Covers registration -> farm -> walk session -> block capture -> elevation
 resolution. The Flutter app (Block D) drives these in order; the
 SetupCoordinator agent only ever *prompts*, it never writes these rows.
 
-huluhilir-rules skill §4: no land boundary, polygon, or ownership field is
+pepperdex-rules skill §4: no land boundary, polygon, or ownership field is
 accepted or stored anywhere here -- only point centroids and elevation_rank
 ordering.
 """
@@ -17,12 +17,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.base import now_kuching
-from app.models.core import Block, ElevationConflict, Farm, FlowEdge, User, WalkSample, WalkSession
+from app.models.core import (
+    Block, ElevationConflict, Farm, FarmRestoreCode, FlowEdge, User, WalkSample, WalkSession,
+)
 from app.schemas.farm import (
     BlockOut,
     FarmCreate,
     FarmOut,
+    FarmUpdate,
     UserCreate,
+    UserUpdate,
     UserOut,
     WalkSampleCreate,
     WalkSessionOut,
@@ -48,16 +52,159 @@ async def get_user(user_id: str, session: AsyncSession = Depends(get_session)) -
     return UserOut.model_validate(user)
 
 
+@router.patch("/users/{user_id}", response_model=UserOut)
+async def update_user(
+    user_id: str, req: UserUpdate, session: AsyncSession = Depends(get_session)
+) -> UserOut:
+    """Settings: change language or display name after setup."""
+    user = await session.get(User, user_id)
+    if user is None:
+        raise HTTPException(404, "user not found")
+    if req.display_name is not None:
+        user.display_name = req.display_name
+    if req.language_pref is not None:
+        user.language_pref = str(getattr(req.language_pref, "value", req.language_pref))
+    await session.commit()
+    return UserOut.model_validate(user)
+
+
+@router.patch("/farms/{farm_id}", response_model=FarmOut)
+async def rename_farm(
+    farm_id: str, req: FarmUpdate, session: AsyncSession = Depends(get_session)
+) -> FarmOut:
+    """Settings: rename only. Centroid/tier stay derived from setup."""
+    farm = await session.get(Farm, farm_id)
+    if farm is None:
+        raise HTTPException(404, "farm not found")
+    if is_demo_farm(farm):
+        # Shared by every device that picked "Try the demo farm"; renaming it
+        # would rename it for everyone and hide it from /demo-session.
+        raise HTTPException(403, "the shared demo farm cannot be renamed")
+    farm.name = req.name
+    await session.commit()
+    return FarmOut.model_validate(farm)
+
+
+class DemoSessionOut(BaseModel):
+    user: UserOut
+    farm: FarmOut
+    # Lets the app treat this session as shared: settings that would affect
+    # every other device on the demo farm (name, language) stay on-device.
+    is_demo: bool = True
+
+
+class RestoreCodeOut(BaseModel):
+    code: str
+
+
+class RestoreRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=20)
+
+
+# Unambiguous alphabet: no 0/O, 1/I/L, so a code read aloud or off a screen
+# can be typed back without guessing.
+_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+
+
+def _new_code() -> str:
+    import secrets
+
+    raw = "".join(secrets.choice(_CODE_ALPHABET) for _ in range(9))
+    return f"{raw[:3]}-{raw[3:6]}-{raw[6:]}"
+
+
+def _normalise_code(code: str) -> str:
+    raw = "".join(ch for ch in code.upper() if ch.isalnum())
+    return f"{raw[:3]}-{raw[3:6]}-{raw[6:]}" if len(raw) == 9 else code.strip().upper()
+
+
+def is_demo_farm(farm: Farm | None) -> bool:
+    return farm is not None and farm.name in DEMO_FARM_NAMES
+
+
+async def _get_or_create_code(session: AsyncSession, farm: Farm, rotate: bool = False) -> str:
+    row = await session.get(FarmRestoreCode, farm.farm_id)
+    if row is not None and not rotate:
+        return row.code
+    code = _new_code()
+    while (await session.execute(select(FarmRestoreCode).where(FarmRestoreCode.code == code))).first():
+        code = _new_code()
+    if row is None:
+        session.add(FarmRestoreCode(farm_id=farm.farm_id, code=code))
+    else:
+        row.code = code
+    await session.commit()
+    return code
+
+
+@router.get("/farms/{farm_id}/restore-code", response_model=RestoreCodeOut)
+async def get_restore_code(farm_id: str, session: AsyncSession = Depends(get_session)) -> RestoreCodeOut:
+    """Shown in Settings on a phone already attached to this farm."""
+    farm = await session.get(Farm, farm_id)
+    if farm is None:
+        raise HTTPException(404, "farm not found")
+    if is_demo_farm(farm):
+        raise HTTPException(403, "the shared demo farm has no restore code")
+    return RestoreCodeOut(code=await _get_or_create_code(session, farm))
+
+
+@router.post("/farms/{farm_id}/restore-code/rotate", response_model=RestoreCodeOut)
+async def rotate_restore_code(farm_id: str, session: AsyncSession = Depends(get_session)) -> RestoreCodeOut:
+    """Cancel a code that was shared by mistake; the old one stops working."""
+    farm = await session.get(Farm, farm_id)
+    if farm is None:
+        raise HTTPException(404, "farm not found")
+    if is_demo_farm(farm):
+        raise HTTPException(403, "the shared demo farm has no restore code")
+    return RestoreCodeOut(code=await _get_or_create_code(session, farm, rotate=True))
+
+
+@router.post("/restore", response_model=DemoSessionOut)
+async def restore_farm(req: RestoreRequest, session: AsyncSession = Depends(get_session)) -> DemoSessionOut:
+    """"Restore my farm" on a new phone: the code maps back to the farm and
+    its user, and the phone becomes that farm again -- including, for the
+    team's farm, Google Calendar ownership (ownership is keyed on farm_id)."""
+    row = (
+        await session.execute(select(FarmRestoreCode).where(FarmRestoreCode.code == _normalise_code(req.code)))
+    ).scalars().first()
+    farm = await session.get(Farm, row.farm_id) if row else None
+    user = await session.get(User, farm.user_id) if farm else None
+    if farm is None or user is None:
+        # One message for every failure: never reveal whether a farm exists.
+        raise HTTPException(404, "restore code not recognised")
+    return DemoSessionOut(user=UserOut.model_validate(user), farm=FarmOut.model_validate(farm), is_demo=False)
+
+
+DEMO_FARM_NAMES = ("Kebun Demo PepperDex", "Kebun Demo HuluHilir")
+
+
+@router.get("/demo-session", response_model=DemoSessionOut)
+async def demo_session(session: AsyncSession = Depends(get_session)) -> DemoSessionOut:
+    """"Try the demo farm" on first launch: hands the app the seeded,
+    already-set-up demo farm (seed/seed.py) instead of creating a new one.
+    Shared by every device that picks it -- the alternative, one demo account
+    baked into every APK, would also skip the setup wizard for everyone."""
+    farm = (
+        await session.execute(select(Farm).where(Farm.name.in_(DEMO_FARM_NAMES)).order_by(Farm.name))
+    ).scalars().first()
+    if farm is None:
+        raise HTTPException(404, "demo farm not seeded")
+    user = await session.get(User, farm.user_id)
+    if user is None:
+        raise HTTPException(404, "demo farm has no user")
+    return DemoSessionOut(user=UserOut.model_validate(user), farm=FarmOut.model_validate(farm))
+
+
 @router.get("/farms", response_model=list[FarmOut])
 async def list_farms(session: AsyncSession = Depends(get_session)) -> list[FarmOut]:
-    """Farm IDs are ULIDs generated at insert time, including the seeded demo
-    farm -- so on CLOUD, where the DB is reseeded on every new revision, the
-    demo farm's ID changes and nothing can reference it by a hardcoded
-    constant. This lets a client (or a judge with a browser) discover the
-    current demo farm instead. Returns no ownership or boundary data
-    (huluhilir-rules §4); a farm row is only a name and a centroid point.
-    """
-    farms = (await session.execute(select(Farm).order_by(Farm.name))).scalars().all()
+    """Demo farm discovery only (the v1 Flutter web app at /app/ uses this to
+    find it by name). It used to return EVERY farm and its farm_id -- and a
+    farm_id is effectively the key to that farm on this account-less API, so
+    anyone could read the list and act as any farmer, including the Google
+    Calendar owner (closed 2026-09-24). v2 uses GET /demo-session instead."""
+    farms = (
+        await session.execute(select(Farm).where(Farm.name.in_(DEMO_FARM_NAMES)).order_by(Farm.name))
+    ).scalars().all()
     return [FarmOut.model_validate(f) for f in farms]
 
 
@@ -227,7 +374,7 @@ async def resolve_elevation(
     """Assign final elevation_ranks and rebuild the flow-edge graph.
 
     The farmer's answers always win; any barometer disagreement is written to
-    elevation_conflicts with resolution='farmer' (huluhilir-rules skill §3).
+    elevation_conflicts with resolution='farmer' (pepperdex-rules skill §3).
     """
     blocks = (await session.execute(select(Block).where(Block.farm_id == farm_id))).scalars().all()
     if not blocks:
@@ -303,7 +450,7 @@ async def block_detail(block_id: str, session: AsyncSession = Depends(get_sessio
     actually taps a block, and folding them into the dashboard would make the
     landing request heavier for every user on a slow connection.
 
-    Returns no ownership or boundary data (huluhilir-rules §4) -- a block is a
+    Returns no ownership or boundary data (pepperdex-rules §4) -- a block is a
     label, a point, and a rank.
     """
     from app.models.diagnosis import Diagnosis, Observation
@@ -335,7 +482,7 @@ async def block_detail(block_id: str, session: AsyncSession = Depends(get_sessio
             # "classes ever produced" says nothing about either one.
             "model_version": diag.model_version if diag else None,
             # Surfaced so the card can show uncertainty rather than assert a
-            # class the model was not confident about (huluhilir-rules §9).
+            # class the model was not confident about (pepperdex-rules §9).
             "below_threshold": (diag.confidence < 0.60) if diag else None,
         }
         for obs, diag in rows
@@ -356,7 +503,7 @@ async def block_detail(block_id: str, session: AsyncSession = Depends(get_sessio
         "photo_uri": block.photo_uri,
         "header_image_uri": header,
         # An audio sticker, replayed beside the photo. Never transcribed --
-        # there is no ASR anywhere in this codebase (huluhilir-rules §1).
+        # there is no ASR anywhere in this codebase (pepperdex-rules §1).
         "voice_label_uri": block.voice_label_uri,
         "elevation_rank": block.elevation_rank,
         "drainage": block.drainage,

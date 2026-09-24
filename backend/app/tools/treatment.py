@@ -1,6 +1,6 @@
 """`get_treatment` / `find_spray_window` — rules-table lookup + rainfast arithmetic.
 
-huluhilir-rules skill §1: the agent may only output a treatment that exists
+pepperdex-rules skill §1: the agent may only output a treatment that exists
 in `treatment_options`. This module is the *only* place that table is read;
 nothing here calls an LLM, and nothing invents a dose.
 """
@@ -46,12 +46,12 @@ def find_spray_window(req: FindSprayWindowRequest) -> FindSprayWindowResult:
     windows: list[SprayWindow] = []
 
     for point in req.forecast:
-        start = datetime.fromisoformat(point.date)
+        start = datetime.fromisoformat(point.forecast_date)
         end = start + timedelta(hours=req.rainfast_hours)
         rain_free = not any(
-            datetime.fromisoformat(p.date) < end and p.rainfall_mm >= RAIN_THRESHOLD_MM
+            datetime.fromisoformat(p.forecast_date) < end and p.rainfall_mm >= RAIN_THRESHOLD_MM
             for p in req.forecast
-            if datetime.fromisoformat(p.date) >= start
+            if datetime.fromisoformat(p.forecast_date) >= start
         )
         windows.append(SprayWindow(window_start=start, window_end=end, rain_free=rain_free))
 

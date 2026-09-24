@@ -1,13 +1,22 @@
 <p align="center">
-  <img src="docs/brand/banner.png" alt="HuluHilir" width="100%">
+  <img src="docs/brand/banner.png" alt="PepperDex Sarawak" width="100%">
 </p>
 
-# HuluHilir
+# PepperDex Sarawak
 
 **Terrain-aware agentic early warning for Phytophthora foot rot in Sarawak black pepper.**
 
-*AI Code Competition 2026 (AICC) · SAIC · Track 3, Category B · Finalist*
-Team **SMILING FACE WITH SUNGLASSES** — Nathan Yap Jia De (technical) · Zoe Tan An Xuen (deliverables) · Abraham Pang Exin (project management)
+*AgroHack 2026 @ Sarawak AgroFest, Sibu, 25–27 September 2026*
+Team **SMILING FACE WITH SUNGLASSES**: Nathan Yap Jia De (technical) · Zoe Tan An Xuen (deliverables) · Abraham Pang Exin (project management)
+
+*(Formerly HuluHilir. The repository, Cloud Run service, database and bucket keep the old name on purpose; renaming them would create new services and URLs.)*
+
+| | |
+|---|---|
+| **Landing page + Android app** | **https://sfws-aicc-workspace-1.web.app** (the APK is always at [`/pepperdex-latest.apk`](https://sfws-aicc-workspace-1.web.app/pepperdex-latest.apk)) |
+| API | https://huluhilir-api-mfrzixfqeq-as.a.run.app · [interactive docs](https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs) |
+
+Install the APK on an Android phone (7 or newer), open it and tap **Try the demo farm** for a ready-made farm with diagnoses, agents at work and a 3D view of the slope.
 
 ---
 
@@ -15,52 +24,54 @@ Team **SMILING FACE WITH SUNGLASSES** — Nathan Yap Jia De (technical) · Zoe T
 
 Existing plant-disease tools answer *"what is wrong with this leaf?"* A farmer with foot rot in one block already knows something is wrong. What they cannot see is **where it goes next, and when.**
 
-Phytophthora foot rot does not spread continuously. It travels **downhill through water, in rain pulses.** A vine 40 metres downslope is at real risk after the next heavy rain; a vine 40 metres uphill is not. That asymmetry is invisible on a map and invisible to a single-leaf classifier.
+Phytophthora foot rot does not spread continuously. It travels **downhill through water, in rain pulses.** A vine 40 metres downslope is at real risk after the next heavy rain; a vine 40 metres uphill is not. Sarawak grows over 98% of Malaysia's pepper, mostly on hill slopes planted that way for drainage, so the same runoff that keeps vines dry carries the pathogen from block to block.
 
-## What HuluHilir does
+## What PepperDex does
 
-It models the farm as a **directed elevation graph** and arbitrates between four signals that routinely disagree:
+It models the farm as a **directed elevation graph** and arbitrates between four kinds of evidence that routinely disagree:
 
-| Signal | Says |
-|---|---|
-| Diagnosis (CNN) | "Collar lesion, moderate — treat now" |
-| Knowledge rules | "This fungicide is rain-fast in 24 h" |
-| Weather | "46 mm of rain tomorrow" |
-| Spread model | "Downslope block at risk in 4 days" |
+| Evidence | Source | Says |
+|---|---|---|
+| What is on the vine | L1 photo classifier | "Collar lesion, 91%, treat now" |
+| What is allowed | L3 rules table | "This drench needs 24 h without rain" |
+| When the rain comes | data.gov.my forecast | "~46 mm tomorrow" |
+| Where the water goes | L2 spread graph | "Block 3 at risk in ~4 days (estimate)" |
 
-Naively, that is four conflicting instructions. HuluHilir's agent resolves them into **one action, one time, one reason:**
+The agent resolves them into **one action, one time, one reason** per block:
 
-> *"Clear the drain today. Spray Thursday morning."*
+> *"Clear the drain today. Drench Thursday morning."*
 
-Spraying today would wash the treatment off before it binds. That arbitration — not the choice of framework — is the differentiator.
+Deterministic checks sit around the agent, so a model mistake never reaches the farmer as advice: a rain-fast check re-times or defers every spray, a rules check drops unknown products, invented blocks and stale dates, the spread model always runs for every diseased block, and if the model is slow or fails the rules table decides alone and the app says so.
 
 ---
 
 ## Architecture
 
 ```
-L0  Voice & language   speech templates · voice labels · NO speech recognition
-L1  Diagnosis          MobileNetV3-Small, 6 classes, ONNX
-L2  Spread             deterministic directed elevation graph — NOT machine learning
-L3  Knowledge          JSON rules (authoritative) + retrieval (explanatory only)
-L4  Agent              Google ADK root agent + 2 loop agents + 1 advisor
+L0  Voice & language   speech playback in Bahasa Malaysia · recorded block names · NO speech recognition
+L1  Diagnosis          MobileNetV3-Small, 6 classes, ONNX (the only classifier)
+L2  Spread             deterministic directed elevation graph -- NOT machine learning
+L3  Knowledge          JSON rules (authoritative) + hybrid retrieval (explanatory only) + farm history
+L4  Agents             Google ADK router + specialist agents + Overrun Council
 ```
 
 ### Agent topology
 
 ```
-RootAgent (LlmAgent) — router + arbitrator
-├── FunctionTools (deterministic)
-│     diagnose_leaf · get_weather · compute_spread
-│     get_treatment · find_spray_window
-├── FunctionTools (LLM-backed)
-│     explain_why · draft_alert
-├── AgentTool → SetupCoordinator      (LoopAgent, max_iterations=25)
-├── AgentTool → DiagnosisCoordinator  (LoopAgent, max_iterations=30)
-└── AgentTool → Advisor               (LlmAgent + retrieval, non-loop)
+Router agent (RootAgent) -- arbitrates; one plan per affected block
+├── Deterministic tools   get_weather · compute_spread · get_treatment
+│                         find_spray_window · query_farm_history
+├── Setup wizard          loop agent, bounded -- the one-time farm walk
+├── DiagnosisCoordinator  loop agent, bounded -- the block-by-block photo round
+├── Advisor               answers from a live snapshot of the farm + knowledge base
+├── Overrun Council       only when more than one block is Harmed:
+│     agronomic urgency · cost feasibility · logistics -> orchestrator ranks
+│     (its response schema has no field for a product, dose or time)
+└── Google Calendar (MCP) read to avoid clashes; writes ONLY when the farmer
+                          approves a proposal card
 ```
 
-Loop-termination checks are **deterministic Python querying the database**, never LLM judgement. The model chooses which template to speak; it never decides whether a cycle is complete.
+Loop termination is **deterministic Python**, never LLM judgement. After each photo round the Advisor chat shows a live feed of each agent's real steps (tool results and council transcripts), not a spinner.
 
 ---
 
@@ -68,139 +79,51 @@ Loop-termination checks are **deterministic Python querying the database**, neve
 
 | Layer | Technology |
 |---|---|
-| Frontend | Flutter (Dart) — Android APK |
-| Backend | FastAPI (Python 3.11+), Pydantic v2 |
-| Agent | Google ADK + LiteLLM |
-| LLM | **Local:** Ollama (`qwen2.5:14b`) · **Cloud:** Vertex AI (`gemini-2.5-flash`) |
-| Storage | SQLAlchemy 2.0 async + SQLite (`aiosqlite`) |
-| Diagnosis | MobileNetV3-Small → ONNX, 6 classes, macro F1 **0.934** on held-out data (see caveat below) |
-| 3D terrain | Three.js in an embedded WebView, IDW height field |
-| Deploy | **Local:** Docker Compose · **Cloud:** Cloud Run + Vertex AI |
+| App | React Native (Expo SDK 57), expo-router, TanStack Query, typed client generated from the API's OpenAPI |
+| Backend | FastAPI (Python 3.11+), Pydantic v2, SQLAlchemy 2.0 async |
+| Agents | Google ADK + LiteLLM: **cloud** Vertex AI `gemini-2.5-flash` · **local** Ollama `qwen2.5:14b` |
+| Storage | **cloud** Cloud SQL Postgres + Cloud Storage for photos · **local** SQLite |
+| Diagnosis | MobileNetV3-Small → ONNX, served by the backend |
+| Calendar | Google Calendar through an MCP server, one linked owner farm, approval-only writes |
+| Hosting | Cloud Run `huluhilir-api` (asia-southeast1) · Firebase Hosting for the landing page and APK |
 
-Switching between local and cloud is **configuration only** — `API_BASE_URL`, `LITELLM_MODEL`, `DATABASE_URL`. No application code branches on deployment target.
+Switching local ↔ cloud is **configuration only** (`API_BASE_URL`, `LITELLM_MODEL`, `DATABASE_URL`). No application code branches on the target. The app can also point at a different server at runtime (Settings → Server address).
 
 ---
 
 ## Design commitments
 
-These are product commitments from the submitted proposal, held even where a shortcut would have been faster.
+Held even where a shortcut would have been faster. Full list: [`.claude/skills/pepperdex-rules/SKILL.md`](.claude/skills/pepperdex-rules/SKILL.md).
 
 1. **No speech recognition on the critical path.** Voice labels are stored as audio and replayed, never transcribed.
-2. **The rules table is the only source of dose, product, and timing.** Retrieval explains *why*; it never decides *what*.
-3. **The farmer's elevation answer always overrides sensors.** Conflicts are logged, never auto-resolved against the farmer.
-4. **No land boundaries or ownership are recorded** — only `elevation_rank` ordering. NCR land is legally sensitive in Sarawak.
-5. **Neighbour alerts are drafted, never auto-sent.** Only a risk band is ever stored against another farmer's block.
-6. **The app works with zero photographs taken.** Rain-pulse warnings and the advisor run without any diagnosis cycle existing.
-7. **Every user-facing string has a `speech_template_id`.** Literacy is not assumed.
-8. **Every risk number carries `is_estimate: true`.** The spread model is physically motivated, not field-validated.
+2. **The rules table is the only source of dose, product and timing.** Retrieval explains *why*; it never decides *what*.
+3. **The farmer's elevation answer always overrides sensors.**
+4. **No land boundaries or ownership are recorded**, only relative elevation order and spacing. NCR land is legally sensitive in Sarawak.
+5. **Neighbour alerts and calendar events are drafted, never automatic.** Nothing is sent or scheduled without the farmer's tap.
+6. **The app works with zero photographs taken.** Rain-pulse warnings and the Advisor run from day one.
+7. **Every risk number is an estimate**, and says so. The spread model is physically motivated, not field-validated.
+8. **The Overrun Council may re-rank; it may never prescribe.** Enforced by its response schema, not by convention.
 
----
-
-## Live deployment
-
-| | |
-|---|---|
-| **Landing page + app** | **https://sfws-aicc-workspace-1.web.app** |
-| App directly | https://sfws-aicc-workspace-1.web.app/app/ |
-| API | https://huluhilir-api-mfrzixfqeq-as.a.run.app |
-| Interactive docs | [`/docs`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs) |
-| Readiness + seed state | [`/health/ready`](https://huluhilir-api-mfrzixfqeq-as.a.run.app/health/ready) |
-
-Open the app and tap **"Lihat ladang demo"** to reach the dashboard without walking a farm.
-
-Cloud Run (`asia-southeast1`) · Vertex AI `gemini-2.5-flash` · Cloud SQL Postgres · Google Cloud TTS · Firebase Hosting.
-Authentication throughout is the service's own service account — there is no API key in this repository or in its configuration.
-
-### Turning Cloud Run and Firebase Hosting on / off
-
-These commands act on the GCP project `sfws-aicc-workspace-1`. They require
-`gcloud` and `firebase-tools` authenticated against an account with access to
-that project — see [Credentials](#credentials--access) below for how access
-is actually granted (not by sharing a secret).
-
-**Cloud Run (the backend API)**
-
-```bash
-# Stop serving traffic without deleting the service (min-instances -> 0,
-# scales to zero; cheapest "off" that is still one command away from "on").
-gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
-  --region asia-southeast1 --min-instances 0 --max-instances 0
-
-# Resume serving.
-gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
-  --region asia-southeast1 --min-instances 1 --max-instances 10
-
-# Full teardown (irreversible without a redeploy) -- only if the service
-# should stop existing, not just stop serving:
-gcloud run services delete huluhilir-api --project sfws-aicc-workspace-1 \
-  --region asia-southeast1
-
-# Redeploy from source at any time:
-bash deploy-cloud.sh
-```
-
-`deploy-cloud.sh` re-sets `CLASSIFIER_BACKEND` and `VISION_MODEL` explicitly
-on every deploy — see `docs/BUILD_LOG.md` "Session handoff" for why those two
-lines must never be dropped from that script.
-
-**Firebase Hosting (landing page + Flutter web app)**
-
-```bash
-# Take the site down (site keeps existing; visitors get Firebase's default
-# "site not found" page until the next deploy):
-firebase hosting:disable --project sfws-aicc-workspace-1
-
-# Bring it back -- rebuilds both the landing page and the Flutter web app,
-# then redeploys:
-bash build-site.sh
-firebase deploy --only hosting --project sfws-aicc-workspace-1
-```
-
-There is no separate "pause" for Hosting beyond `hosting:disable` — it is a
-static file server, so the meaningful on/off is deploy vs. disable.
-
-### Credentials & access
-
-This repository and this README never contain live credentials — not a
-service account key, not an API token, not a `.env` file. Access to
-`sfws-aicc-workspace-1` is granted per person, the same way for anyone who
-needs to deploy:
-
-```bash
-# Grant a teammate's own Google account deploy rights (they authenticate as
-# themselves via `gcloud auth login` -- nothing is copied or shared):
-gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
-  --member="user:their-email@example.com" --role="roles/run.admin"
-gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
-  --member="user:their-email@example.com" --role="roles/firebasehosting.admin"
-```
-
-or invite them as a Firebase project member from the
-[Firebase console](https://console.firebase.google.com/project/sfws-aicc-workspace-1/settings/iam).
-Whoever already has access runs `gcloud auth login` / `firebase login` locally
-and the CLIs above work directly — there is no separate secret to distribute.
+There are no accounts or passwords: a phone is linked to its farm, and a private **restore code** (Settings) moves the farm to a new phone. Android app-data backup is switched off so a farm never moves without that code.
 
 ---
 
 ## Running it
 
-### Backend (local)
+### Backend, local
 
 ```bash
-docker compose up --build
+docker compose up --build        # or: cd backend && uvicorn app.main:app --host 0.0.0.0
+ollama serve && ollama pull qwen2.5:14b   # native on the host, not in Docker
 ```
 
-Ollama runs natively on the host, not in Docker:
+Phone testing over a hotspot (firewall, `.env`, finding the laptop's address): see `../WORKSPACE_SETUP.md` § "Local hosting for phone testing".
+
+### App, development
 
 ```bash
-ollama serve && ollama pull qwen2.5:14b
-```
-
-### Flutter app
-
-```bash
-cd flutter_app
-flutter run --dart-define=API_BASE_URL=http://<LAPTOP_LAN_IP>:8000
+cd frontend-rn
+npx expo start
 ```
 
 ### Tests
@@ -209,35 +132,72 @@ flutter run --dart-define=API_BASE_URL=http://<LAPTOP_LAN_IP>:8000
 cd backend && pytest
 ```
 
-The arbitration test (`tests/test_agent_arbitration.py`) runs against a **live** LLM rather than a mock — it is the exit criterion for the agent layer, and mocking it would only prove the mock.
+`tests/test_agent_arbitration.py` runs against a **live** LLM rather than a mock (it is the exit criterion for the agent layer), so it needs a model running; everything else runs offline.
+
+---
+
+## Releasing and deploying
+
+| What | Command (Git Bash, repo root) |
+|---|---|
+| New Android release | `./release-apk.sh --deploy`: bumps `versionCode`, builds locally, signs with the project keystore, refuses to publish if the certificate differs, then republishes the site with the APK at its fixed URL |
+| Landing page only | `./build-site.sh --deploy` |
+| Backend | `./deploy-cloud.sh`: rebuilds and redeploys Cloud Run `huluhilir-api` with the same service, URL, database and secrets |
+
+`release-apk.sh` builds without EAS (the free build quota is spent until 1 Oct 2026) and needs Android Studio plus the keystore files from `eas credentials`, which are gitignored. Once the quota resets, `eas build --platform android --profile cloud` works again with the same key.
+
+### Turning services on and off
+
+```bash
+# Cloud Run: stop serving without deleting (scales to zero)
+gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
+  --region asia-southeast1 --min-instances 0 --max-instances 0
+
+# Cloud Run: resume (max 1 on purpose -- the live agent feed is held in memory)
+gcloud run services update huluhilir-api --project sfws-aicc-workspace-1 \
+  --region asia-southeast1 --min-instances 1 --max-instances 1
+
+# Firebase Hosting: take the site down / bring it back
+npx firebase-tools hosting:disable --project sfws-aicc-workspace-1
+./build-site.sh --deploy
+```
+
+### Credentials & access
+
+This repository never contains live credentials: no service-account key, API token, keystore or `.env`. Secrets live in Secret Manager and are mounted into Cloud Run by `deploy-cloud.sh`; the list of variables (not their values) is in [`docs/CREDENTIALS.md`](docs/CREDENTIALS.md). Access to the project `sfws-aicc-workspace-1` is granted per person:
+
+```bash
+gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
+  --member="user:their-email@example.com" --role="roles/run.admin"
+gcloud projects add-iam-policy-binding sfws-aicc-workspace-1 \
+  --member="user:their-email@example.com" --role="roles/firebasehosting.admin"
+```
 
 ---
 
 ## Repository layout
 
 ```
-backend/          FastAPI app, agent layer, deterministic tools, tests
-  app/agent/        ADK agents, tool bindings, error boundaries
-  app/tools/        spread · weather · treatment · diagnose · graph · advisor
-  app/routers/      HTTP surface
+backend/          FastAPI app, agents, deterministic tools, MCP calendar server, tests
+  app/agent/        ADK agents, council, live progress feed, MCP client
+  app/tools/        spread · weather · treatment · scheduling · farm context · diagnose
+  app/routers/      HTTP surface (setup, diagnosis, agent, calendar, dashboard, speech)
   seed/             rules table, knowledge docs, speech templates, demo farm
+  scripts/          one-off operations (e.g. copying a farm to Cloud SQL)
+frontend-rn/      React Native (Expo) Android app -- the current frontend
+flutter_app/      v1 Flutter client, kept for reference only (no longer built or published)
 classifier/       MobileNetV3-Small training + exported ONNX model
-flutter_app/      Android client
-  assets/terrain/   Three.js 3D terrain scene
-docs/             specification, data model, build log, validation checklist
+landing/          landing page (React + anime.js), built into public_site/ by build-site.sh
+docs/             specification, data model, credentials list, validation checklist
 ```
-
-`docs/BUILD_LOG.md` records what broke during the build and how it was diagnosed, including the failures that were only visible on a real device.
 
 ---
 
-## Status
+## Status and honest limits
 
-Built during a 24-hour window (23–24 Aug 2026) on-site at TDV Kuching.
+The demo farm is synthetic, so the pipeline is demonstrable without a real outbreak. The spread model is physically motivated but **not field-validated**, which is why every risk figure it emits is flagged as an estimate.
 
-The demo farm is synthetic (a placeholder near Kuching) so the pipeline is demonstrable; the spread model is physically motivated but **not field-validated**, which is why every risk figure it emits is flagged as an estimate.
-
-**On the classifier's 0.934 macro F1.** That is a real measurement of the MobileNetV3-Small on its own held-out test set, and nothing more. Probing the exported model shows it confidently wrong on inputs it should reject outright — a solid black image returns `healthy_leaf` at 0.78 — and every plausible preprocessing variant reproduces that, which locates the problem in the weights rather than the wiring. It was trained on roughly 530 originals, largely generated rather than photographed. **It does not generalise to real field photos, and the 0.934 should not be read as field accuracy.** L1 is therefore presented as an early-warning prompt to go and inspect a vine, never as a diagnosis. A vision-model backend exists behind `CLASSIFIER_BACKEND` as the intended replacement; it is not yet working and the deployed path remains the CNN.
+**On the classifier.** MobileNetV3-Small scores 0.934 macro F1 on its own held-out test set, and that is all the number means. It was trained on roughly 530 originals, largely generated rather than photographed, and it does not generalise reliably to real field photos. L1 is therefore presented as a prompt to go and inspect a vine, never as a diagnosis on its own; an unsure result (below 60%) never lowers a block's state.
 
 ## Licence
 
