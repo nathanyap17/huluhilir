@@ -3,7 +3,11 @@ uvicorn[standard]
 httpx
 pydantic>=2
 pydantic-settings
-sqlalchemy>=2
+# [asyncio] + greenlet explicitly: newer SQLAlchemy no longer installs
+# greenlet on its own, and a Cloud Run revision crashed on startup without it.
+# Held on the 2.0 line the test suite runs on.
+sqlalchemy[asyncio]>=2.0,<2.1
+greenlet
 aiosqlite
 # CLOUD only: DATABASE_URL switches to postgresql+asyncpg on Cloud Run
 # (Cloud Run's filesystem is ephemeral -- a SQLite file there is wiped on
