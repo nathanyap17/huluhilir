@@ -96,6 +96,11 @@ async def check_calendar_availability(start_iso: str, end_iso: str) -> dict:
         }
 
 
+# Unbound originals; build_tools wraps them with the farm check.
+_check_calendar_schedule = check_calendar_schedule
+_check_calendar_availability = check_calendar_availability
+
+
 @tool_error_boundary
 async def schedule_treatment_event(
     title: str,
@@ -270,6 +275,30 @@ def build_tools(session: AsyncSession, farm_id: str) -> list[FunctionTool]:
             session, farm_id,
             block_id=block_id, disease_class=disease_class, since_days=since_days, limit=limit,
         )
+
+    # Calendar reads are bound to THIS run's farm. The linked Google account
+    # belongs to the owner farm only; without this check a run on the shared
+    # demo farm, or any visitor's farm, could read the team's events
+    # (found 2026-09-26). Same names as the module-level tools, so the live
+    # feed labels (progress.py) still match.
+    not_linked = {"connected": False, "error": "no calendar is linked to this farm"}
+
+    @tool_error_boundary
+    async def check_calendar_schedule(max_results: int = 10) -> dict:
+        """Check upcoming events on the farmer's linked Google Calendar.
+        Use this to see upcoming scheduled farm tasks or detect potential scheduling
+        conflicts before suggesting a treatment date. Returns events or connection status."""
+        if not calendar_service.farm_may_write(farm_id):
+            return not_linked
+        return await _check_calendar_schedule(max_results=max_results)
+
+    @tool_error_boundary
+    async def check_calendar_availability(start_iso: str, end_iso: str) -> dict:
+        """Check if the farmer is available during a specific treatment window.
+        Use this to ensure a proposed spray or drench window does not conflict with existing events."""
+        if not calendar_service.farm_may_write(farm_id):
+            return not_linked
+        return await _check_calendar_availability(start_iso=start_iso, end_iso=end_iso)
 
     return [
         FunctionTool(func=diagnose_leaf),

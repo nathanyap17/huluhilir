@@ -102,3 +102,44 @@ async def test_demo_session_hands_out_the_seeded_farm(client):
     demo = await _farm(http, "Kebun Demo PepperDex")
     body = (await http.get("/demo-session")).json()
     assert body["farm"]["farm_id"] == demo and body["user"]["user_id"]
+
+
+@pytest.mark.asyncio
+async def test_agent_calendar_reads_are_limited_to_the_owner_farm(monkeypatch):
+    """Found 2026-09-26: the agent's read tools ignored which farm the run was
+    for, so a run on the shared demo farm could read the team's Google
+    Calendar. Reads now go through farm_may_write, like every other path."""
+    from app.agent import mcp_calendar_client
+    from app.agent import tools as agent_tools
+    from app.tools import calendar_service
+
+    calls = []
+
+    async def fake_list(max_results=10):
+        calls.append("list")
+        return "PRIVATE-EVENT"
+
+    async def fake_avail(start_iso, end_iso):
+        calls.append("avail")
+        return "PRIVATE-FREEBUSY"
+
+    monkeypatch.setattr(mcp_calendar_client, "mcp_list_upcoming_events", fake_list)
+    monkeypatch.setattr(mcp_calendar_client, "mcp_check_availability", fake_avail)
+    monkeypatch.setenv("CALENDAR_OWNER_FARM_ID", "OWNER")
+    monkeypatch.setattr(calendar_service, "is_calendar_connected", lambda: True)
+
+    def tools_for(farm_id):
+        return {t.name: t.func for t in agent_tools.build_tools(None, farm_id)}
+
+    visitor = tools_for("DEMO-OR-VISITOR")
+    for result in (
+        await visitor["check_calendar_schedule"](),
+        await visitor["check_calendar_availability"]("2026-09-26T08:00", "2026-09-26T09:00"),
+    ):
+        assert result["connected"] is False and "PRIVATE" not in str(result)
+    assert calls == []  # the calendar was never touched
+
+    owner = tools_for("OWNER")
+    assert (await owner["check_calendar_schedule"]())["mcp_output"] == "PRIVATE-EVENT"
+    assert (await owner["check_calendar_availability"]("a", "b"))["mcp_output"] == "PRIVATE-FREEBUSY"
+    assert calls == ["list", "avail"]
