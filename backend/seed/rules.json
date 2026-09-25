@@ -67,8 +67,8 @@
       "dose_text_ms": null,
       "application_method": "clear_drain",
       "reentry_hours": 0,
-      "source_ref": "MPB/DOA field study: drainage management reduced foot rot losses 24% (USD 439/ha), exceeding fungicide's 20% -- see docs/PROJECT_SPEC.md §2",
-      "source_url": null,
+      "source_ref": "Bhat et al. (2025), Plant Science Today 12(1): farm study, west-coast India -- drainage cut foot rot losses 24% (USD 439/ha) vs fungicide 20%",
+      "source_url": "https://doi.org/10.14719/pst.6764",
       "_verified_pending": false
     },
     {

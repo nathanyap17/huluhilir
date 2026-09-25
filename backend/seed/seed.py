@@ -38,6 +38,11 @@ async def seed_treatments(session):
     for t in data["treatments"]:
         exists = await session.get(TreatmentOption, t["treatment_id"])
         if exists:
+            # Citations only: a corrected source must reach databases seeded
+            # before the fix. Dose, timing and applies_to are never rewritten
+            # here -- changing authoritative content is a deliberate migration.
+            exists.source_ref = t["source_ref"]
+            exists.source_url = t.get("source_url")
             continue
         session.add(TreatmentOption(
             treatment_id=t["treatment_id"],
