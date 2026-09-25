@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
 import { api } from "../../src/api/client";
 import { Card } from "../../src/components/Card";
+import { DemoBanner } from "../../src/components/DemoBanner";
 import { PriorityActionCard } from "../../src/components/PriorityActionCard";
 import { RainPulseCard } from "../../src/components/RainPulseCard";
 import { useT, type StringKey } from "../../src/i18n";
@@ -41,6 +42,8 @@ export default function HomeScreen() {
       }
     >
       <Text style={styles.farmName}>{farm?.name}</Text>
+
+      <DemoBanner />
 
       {dashboard && <RainPulseCard rainPulse={dashboard.rain_pulse} />}
 

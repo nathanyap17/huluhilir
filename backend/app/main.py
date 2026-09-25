@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import SessionLocal, init_db
-from app.routers import agent, calendar, dashboard, diagnosis, health, media, setup, speech, tools
+from app.routers import agent, calendar, dashboard, demo, diagnosis, health, media, setup, speech, tools
 
 
 @asynccontextmanager
@@ -31,7 +31,15 @@ async def lifespan(app: FastAPI):
         if session.bind.dialect.name == "sqlite":
             await rebuild_fts_index(session)
             await session.commit()
+
+    # Nightly restore of the shared demo farm (app/tools/demo_snapshot.py).
+    import asyncio
+
+    from app.tools.demo_snapshot import nightly_restore_loop
+
+    nightly = asyncio.create_task(nightly_restore_loop(SessionLocal))
     yield
+    nightly.cancel()
 
 
 app = FastAPI(
@@ -54,6 +62,7 @@ app.include_router(health.router)
 app.include_router(tools.router)
 app.include_router(agent.router)
 app.include_router(setup.router)
+app.include_router(demo.router)
 app.include_router(media.router)
 app.include_router(diagnosis.router)
 app.include_router(dashboard.router)

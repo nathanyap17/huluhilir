@@ -1,8 +1,7 @@
-import { router } from "expo-router";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
-import { queryClient } from "../api/queryClient";
 import { colors, fonts, spacing } from "../constants/theme";
 import { useT } from "../i18n";
+import { leaveToWelcome } from "../session/leaveSession";
 import { useSessionStore } from "../store/sessionStore";
 
 /**
@@ -17,7 +16,6 @@ import { useSessionStore } from "../store/sessionStore";
 export function StartOverLink() {
   const { t } = useT();
   const hasFarm = useSessionStore((s) => !!s.farm);
-  const clear = useSessionStore((s) => s.clear);
   if (!hasFarm) return null;
 
   function confirm() {
@@ -26,11 +24,7 @@ export function StartOverLink() {
       {
         text: t("start_over"),
         style: "destructive",
-        onPress: () => {
-          clear();
-          queryClient.clear();
-          router.replace("/(setup)/welcome");
-        },
+        onPress: leaveToWelcome,
       },
     ]);
   }

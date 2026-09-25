@@ -4,6 +4,7 @@ import { Alert, AppState, Linking, Pressable, ScrollView, Share, StyleSheet, Tex
 import { api } from "../src/api/client";
 import { PrimaryButton } from "../src/components/PrimaryButton";
 import { ServerAddressField } from "../src/components/ServerAddressField";
+import { useLeaveDemo } from "../src/components/DemoBanner";
 import { apiBase } from "../src/constants/config";
 import { useT } from "../src/i18n";
 import { useSessionStore } from "../src/store/sessionStore";
@@ -36,6 +37,7 @@ export default function SettingsScreen() {
   const setFarm = useSessionStore((s) => s.setFarm);
   const clear = useSessionStore((s) => s.clear);
   const isDemo = useSessionStore((s) => s.isDemo);
+  const leaveDemo = useLeaveDemo();
   const { t } = useT();
   const [restoreCode, setRestoreCode] = useState<string | null>(null);
 
@@ -276,11 +278,15 @@ export default function SettingsScreen() {
 
       <View style={styles.spacer} />
 
-      <PrimaryButton
-        label={confirming ? t("reset_confirm") : t("reset_press")}
-        onPress={handleResetPress}
-        variant="danger"
-      />
+      {isDemo ? (
+        <PrimaryButton label={t("leave_demo")} onPress={leaveDemo} variant="secondary" />
+      ) : (
+        <PrimaryButton
+          label={confirming ? t("reset_confirm") : t("reset_press")}
+          onPress={handleResetPress}
+          variant="danger"
+        />
+      )}
     </ScrollView>
   );
 }

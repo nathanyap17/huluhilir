@@ -4,7 +4,7 @@ docs/DATA_MODEL.md §1-7.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import KuchingDateTime, Base, now_kuching, ulid_pk
@@ -161,3 +161,18 @@ class ElevationConflict(Base):
     resolution: Mapped[str] = mapped_column(String(20), default="farmer")
     delta_h_m: Mapped[Optional[float]] = mapped_column(Float)
     logged_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+
+
+class DemoSnapshot(Base):
+    """A frozen copy of the shared demo farm's rows (one row, id "demo").
+
+    Visitors who pick "Try the demo farm" share one farm, so their photos and
+    runs change it for everyone. The admin captures the farm in a good state;
+    it is restored nightly and on demand (app/tools/demo_snapshot.py)."""
+
+    __tablename__ = "demo_snapshots"
+
+    snapshot_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    captured_at: Mapped[datetime] = mapped_column(KuchingDateTime(), default=now_kuching)
+    restored_at: Mapped[Optional[datetime]] = mapped_column(KuchingDateTime())
+    payload: Mapped[dict] = mapped_column(JSON)

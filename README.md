@@ -146,6 +146,18 @@ cd backend && pytest
 
 `release-apk.sh` builds without EAS (the free build quota is spent until 1 Oct 2026) and needs Android Studio plus the keystore files from `eas credentials`, which are gitignored. Once the quota resets, `eas build --platform android --profile cloud` works again with the same key.
 
+### Keeping the shared demo farm tidy
+
+Every phone on "Try the demo farm" shares one farm, so visitors' photos and runs change it for everyone. The admin freezes it in a good state and it is restored automatically **every night at 03:00 (Kuching)**, or on demand. Both actions need the restore code of the team's own farm (the Google Calendar owner), shown in Settings on the admin phone.
+
+| Action | How |
+|---|---|
+| Check status | `GET /demo/snapshot` |
+| Freeze the demo as it looks now | `POST /demo/snapshot` with `{"restore_code": "XXX-XXX-XXX"}` |
+| Put it back now (e.g. before judging) | `POST /demo/restore` with the same body |
+
+Easiest from a phone: open `https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs`, find the endpoint, tap **Try it out**, paste the code, **Execute**. Phones already on the demo farm keep working; they see the restored state on their next refresh.
+
 ### Turning services on and off
 
 ```bash
