@@ -137,6 +137,15 @@ async def _get_or_create_code(session: AsyncSession, farm: Farm, rotate: bool = 
     return code
 
 
+def _is_pinned_owner(farm_id: str) -> bool:
+    """The deployment's calendar-owner farm (CALENDAR_OWNER_FARM_ID). Its
+    farm_id is published in the repository, so it must not unlock the
+    restore code -- which in turn unlocks the farm and the demo controls."""
+    from app.tools import calendar_service
+
+    return calendar_service.owner_is_pinned() and calendar_service.get_calendar_owner() == farm_id
+
+
 @router.get("/farms/{farm_id}/restore-code", response_model=RestoreCodeOut)
 async def get_restore_code(farm_id: str, session: AsyncSession = Depends(get_session)) -> RestoreCodeOut:
     """Shown in Settings on a phone already attached to this farm."""
@@ -145,6 +154,8 @@ async def get_restore_code(farm_id: str, session: AsyncSession = Depends(get_ses
         raise HTTPException(404, "farm not found")
     if is_demo_farm(farm):
         raise HTTPException(403, "the shared demo farm has no restore code")
+    if _is_pinned_owner(farm_id):
+        raise HTTPException(403, "the team farm's restore code is kept offline by the team")
     return RestoreCodeOut(code=await _get_or_create_code(session, farm))
 
 
@@ -156,6 +167,8 @@ async def rotate_restore_code(farm_id: str, session: AsyncSession = Depends(get_
         raise HTTPException(404, "farm not found")
     if is_demo_farm(farm):
         raise HTTPException(403, "the shared demo farm has no restore code")
+    if _is_pinned_owner(farm_id):
+        raise HTTPException(403, "the team farm's restore code is kept offline by the team")
     return RestoreCodeOut(code=await _get_or_create_code(session, farm, rotate=True))
 
 

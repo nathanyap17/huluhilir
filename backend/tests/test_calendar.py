@@ -158,7 +158,10 @@ async def test_google_calendar_status(client):
 
 
 @pytest.mark.asyncio
-async def test_google_calendar_auth_url(client):
+async def test_google_calendar_auth_url(client, monkeypatch):
+    from app.tools import calendar_service
+    # A first link: nothing connected yet (re-linking a connected calendar is refused).
+    monkeypatch.setattr(calendar_service, "is_calendar_connected", lambda: False)
     http, _ = client
     resp = await http.get("/api/calendar/auth-url?farm_id=farm_123")
     assert resp.status_code == 200
@@ -170,7 +173,10 @@ async def test_google_calendar_auth_url(client):
 
 
 @pytest.mark.asyncio
-async def test_google_calendar_login_redirect(client):
+async def test_google_calendar_login_redirect(client, monkeypatch):
+    from app.tools import calendar_service
+    # A first link: nothing connected yet (re-linking a connected calendar is refused).
+    monkeypatch.setattr(calendar_service, "is_calendar_connected", lambda: False)
     http, _ = client
     resp = await http.get("/api/calendar/login?farm_id=farm_123", follow_redirects=False)
     assert resp.status_code in (302, 307)
@@ -182,10 +188,10 @@ async def test_google_calendar_events_unconnected_returns_400(client, monkeypatc
     from app.tools import calendar_service
     monkeypatch.setattr(calendar_service, "is_calendar_connected", lambda: False)
     http, _ = client
-    # No link (and no owning farm): reading or writing the calendar is refused.
-    # 403 since 2026-09-24 -- these endpoints expose a real person's calendar.
+    # The direct read/write endpoints were removed on 2026-09-26: the app never
+    # used them, and a farm_id (which can be public) was their only key.
     get_resp = await http.get("/api/calendar/events")
-    assert get_resp.status_code == 403
+    assert get_resp.status_code in (404, 405)
 
     post_resp = await http.post(
         "/api/calendar/events",
@@ -195,7 +201,7 @@ async def test_google_calendar_events_unconnected_returns_400(client, monkeypatc
             "description": "Rawatan bintik daun",
         },
     )
-    assert post_resp.status_code == 403
+    assert post_resp.status_code in (404, 405)
 
 
 @pytest.mark.asyncio

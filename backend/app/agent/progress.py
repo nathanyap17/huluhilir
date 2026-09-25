@@ -161,6 +161,13 @@ def describe_call(call: dict[str, Any], labels: dict[str, str]) -> Optional[dict
     args = call.get("args") or {}
     lab = lambda bid: labels.get(bid, "?")  # noqa: E731
 
+    if name in ("check_calendar_schedule", "check_calendar_availability"):
+        if isinstance(res, dict) and res.get("connected") is False:
+            return event("calendar_mcp", "Tiada Google Calendar dipautkan pada ladang ini; jadual ikut ramalan cuaca sahaja.",
+                         "No Google Calendar is linked to this farm; scheduling follows the forecast only.")
+        return event("calendar_mcp", "Google Calendar disemak melalui MCP untuk elak pertindihan.",
+                     "Google Calendar checked over MCP to avoid clashes.")
+
     if isinstance(res, dict) and "error" in res and len(res) <= 2:
         return event(
             "root_agent",

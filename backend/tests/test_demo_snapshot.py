@@ -43,8 +43,9 @@ async def ctx(monkeypatch):
             user = (await client.post("/users", json={"display_name": "N", "district": "Sibu"})).json()
             farm = (await client.post("/farms", json={"user_id": user["user_id"], "name": "Kebun Admin",
                                                       "centroid_lat": 2.3, "centroid_lon": 111.8})).json()
-            monkeypatch.setenv("CALENDAR_OWNER_FARM_ID", farm["farm_id"])
+            # Read the code before pinning: once pinned, the API keeps it offline.
             code = (await client.get(f"/farms/{farm['farm_id']}/restore-code")).json()["code"]
+            monkeypatch.setenv("CALENDAR_OWNER_FARM_ID", farm["farm_id"])
             yield client, session, code, farm["farm_id"]
         app.dependency_overrides.clear()
     await engine.dispose()

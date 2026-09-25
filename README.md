@@ -158,6 +158,16 @@ Every phone on "Try the demo farm" shares one farm, so visitors' photos and runs
 
 Easiest from a phone: open `https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs`, find the endpoint, tap **Try it out**, paste the code, **Execute**. Phones already on the demo farm keep working; they see the restored state on their next refresh.
 
+### The team farm is protected on the cloud
+
+The cloud deployment pins the team's farm as the Google Calendar owner (`CALENDAR_OWNER_FARM_ID`). That farm's id is written in this public repository, so it is treated as public and **unlocks nothing on its own**:
+
+- The calendar can't be read or written directly through the API; the only write path is the farmer approving a proposal card.
+- Nobody can re-link a connected calendar or unlink it through the API.
+- The team farm's **restore code is kept offline**: the API won't show or rotate it, so the admin phone's Settings no longer displays it. Keep the written copy safe. It is still what restores the farm onto a phone and what authorises the demo snapshot controls.
+
+If the written code is ever lost, anyone with access to the Google Cloud project can read it from Cloud SQL (`SELECT code FROM farm_restore_codes WHERE farm_id = '<team farm id>'`).
+
 ### Turning services on and off
 
 ```bash

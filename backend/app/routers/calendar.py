@@ -42,6 +42,21 @@ async def _is_demo_farm(session: AsyncSession, farm_id: str | None) -> bool:
     return farm is not None and farm.name in DEMO_FARM_NAMES
 
 
+def _link_refusal(is_demo: bool, farm_id: str | None) -> str | None:
+    """Why this farm may not start a Google link now, or None if it may.
+    While a calendar is connected, nobody may re-link -- not even with the
+    owner's farm_id -- or anyone who learned that id could attach their own
+    Google account in the team's place (found 2026-09-26)."""
+    if is_demo or not calendar_service.farm_may_link(farm_id):
+        return (
+            "Google Calendar is linked to the team's demo phone. On this device, approved "
+            "schedules are kept in the app."
+        )
+    if calendar_service.is_calendar_connected():
+        return "Google Calendar is already linked. Unlink it on the server before linking again."
+    return None
+
+
 @router.get("/api/calendar/auth-url")
 @router.get("/calendar/auth-url")
 async def get_google_calendar_auth_url(
@@ -50,12 +65,9 @@ async def get_google_calendar_auth_url(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     """Generate the Google OAuth authorization URL for linking Google Calendar."""
-    if await _is_demo_farm(session, farm_id) or not calendar_service.farm_may_link(farm_id):
-        raise HTTPException(
-            409,
-            "Google Calendar is linked to the team's demo phone. On this device, approved "
-            "schedules are kept in the app.",
-        )
+    refusal = _link_refusal(await _is_demo_farm(session, farm_id), farm_id)
+    if refusal:
+        raise HTTPException(409, refusal)
     res = calendar_service.get_authorization_url(redirect_uri=redirect_uri, state=farm_id)
     if not res:
         raise HTTPException(500, "Google Calendar OAuth client is not configured in .env")
@@ -71,8 +83,9 @@ async def google_calendar_login(
     session: AsyncSession = Depends(get_session),
 ):
     """Direct browser shortcut: redirects directly to Google OAuth consent."""
-    if await _is_demo_farm(session, farm_id) or not calendar_service.farm_may_link(farm_id):
-        raise HTTPException(409, "Google Calendar is already linked to another farm.")
+    refusal = _link_refusal(await _is_demo_farm(session, farm_id), farm_id)
+    if refusal:
+        raise HTTPException(409, refusal)
     res = calendar_service.get_authorization_url(redirect_uri=redirect_uri, state=farm_id)
     if not res:
         raise HTTPException(500, "Google Calendar OAuth client is not configured in .env")
@@ -89,8 +102,9 @@ async def google_calendar_callback(
 ) -> HTMLResponse:
     """Handle OAuth redirect callback from Google, save token.json, and record grant."""
     try:
-        if await _is_demo_farm(session, state) or not calendar_service.farm_may_link(state):
-            raise RuntimeError("Google Calendar is already linked to another farm.")
+        refusal = _link_refusal(await _is_demo_farm(session, state), state)
+        if refusal:
+            raise RuntimeError(refusal)
         creds = calendar_service.exchange_code_and_save_token(code=code, state=state)
         if not creds:
             raise RuntimeError("Failed to exchange authorization code for tokens.")
@@ -145,7 +159,11 @@ async def google_calendar_callback(
 
 @router.delete("/api/calendar/google", status_code=204)
 async def unlink_google_calendar(farm_id: str | None = Query(default=None)) -> None:
-    """Owner-only: forget the Google token so another farm may link."""
+    """Owner-only: forget the Google token so another farm may link. Refused
+    when the deployment pins the owner (CALENDAR_OWNER_FARM_ID, the cloud):
+    that farm_id is not a secret, so it cannot authorise unlinking there."""
+    if calendar_service.owner_is_pinned():
+        raise HTTPException(403, "The team's calendar link is managed on the server.")
     if calendar_service.get_calendar_owner() not in (None, farm_id):
         raise HTTPException(403, "Only the farm that linked Google Calendar can unlink it.")
     calendar_service.unlink_google()
@@ -171,83 +189,11 @@ async def get_google_calendar_status(
     }
 
 
-@router.get("/api/calendar/events")
-@router.get("/calendar/events")
-async def list_google_calendar_events(
-    farm_id: str | None = Query(default=None),
-    max_results: int = Query(default=10, ge=1, le=50),
-) -> dict[str, Any]:
-    """List upcoming Google Calendar events (owning farm only -- this is a
-    real person's calendar)."""
-    if not calendar_service.farm_may_write(farm_id):
-        raise HTTPException(403, "Only the farm that linked Google Calendar can read it.")
-    if not calendar_service.is_calendar_connected():
-        raise HTTPException(400, "Google Calendar is not connected. Authenticate via /api/calendar/login first.")
-    try:
-        events = calendar_service.list_upcoming_events(max_results=max_results)
-        return {"events": events, "count": len(events)}
-    except Exception as exc:
-        raise HTTPException(500, f"Failed to list events: {exc}")
-
-
-@router.post("/api/calendar/events", status_code=201)
-@router.post("/calendar/events", status_code=201)
-async def create_google_calendar_event(
-    req: CreateCalendarEventRequest,
-    farm_id: str | None = Query(default=None),
-) -> dict[str, Any]:
-    """Create an event on Google Calendar directly (owning farm only)."""
-    if not calendar_service.farm_may_write(farm_id):
-        raise HTTPException(403, "Only the farm that linked Google Calendar can write to it.")
-    if not calendar_service.is_calendar_connected():
-        raise HTTPException(400, "Google Calendar is not connected. Authenticate via /api/calendar/login first.")
-    try:
-        res = calendar_service.create_calendar_event(
-            title=req.title,
-            start_iso=req.start_iso,
-            end_iso=req.end_iso,
-            description=req.description,
-            location=req.location,
-        )
-        return res
-    except Exception as exc:
-        raise HTTPException(500, f"Failed to create event: {exc}")
-
-
 @router.get("/api/calendar/mcp/status")
 async def get_google_calendar_mcp_status() -> dict[str, Any]:
     """Check connectivity and list tools registered on the Google Calendar MCP server."""
     status = await mcp_calendar_client.get_mcp_calendar_status()
     return status
-
-
-@router.get("/api/calendar/mcp/events")
-async def list_events_via_mcp(
-    max_results: int = Query(default=10, ge=1, le=50),
-    farm_id: str | None = Query(default=None),
-) -> dict[str, Any]:
-    if not calendar_service.farm_may_write(farm_id):
-        raise HTTPException(403, "Only the farm that linked Google Calendar can read it.")
-    """List events via the Google Calendar MCP server."""
-    res = await mcp_calendar_client.mcp_list_upcoming_events(max_results=max_results)
-    return {"result": res}
-
-
-@router.post("/api/calendar/mcp/events", status_code=201)
-async def create_event_via_mcp(
-    req: CreateCalendarEventRequest, farm_id: str | None = Query(default=None)
-) -> dict[str, Any]:
-    if not calendar_service.farm_may_write(farm_id):
-        raise HTTPException(403, "Only the farm that linked Google Calendar can write to it.")
-    """Create an event using the Google Calendar MCP server."""
-    res = await mcp_calendar_client.mcp_create_calendar_event(
-        title=req.title,
-        start_iso=req.start_iso,
-        end_iso=req.end_iso,
-        description=req.description,
-        location=req.location,
-    )
-    return {"result": res}
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +226,14 @@ async def create_calendar_proposal(
     session: AsyncSession = Depends(get_session),
 ) -> CalendarProposalOut:
     """Create a draft calendar proposal requiring farmer confirmation (Rule 13).
-    Does NOT write to Google Calendar until explicitly approved."""
+    Does NOT write to Google Calendar until explicitly approved.
+
+    Free-text proposals are refused for the deployment's owner farm: its
+    farm_id is public, and approving free text would write anything to the
+    team's calendar. The app never uses this route; its proposals come from
+    the agent run or /recommendations/{id}/calendar-proposal."""
+    if calendar_service.owner_is_pinned() and calendar_service.get_calendar_owner() == farm_id:
+        raise HTTPException(403, "Free-text proposals are not accepted for the team's farm.")
     import datetime
 
     start_dt = datetime.datetime.fromisoformat(req.start_iso.replace("Z", "+00:00"))

@@ -60,9 +60,7 @@ async def test_only_the_owning_farm_links_reads_or_writes(client):
 
     # A judge's phone can neither start a link nor read/write the team calendar.
     assert (await http.get(f"/api/calendar/auth-url?farm_id={judge}")).status_code == 409
-    assert (await http.get(f"/api/calendar/events?farm_id={judge}")).status_code == 403
-    assert (await http.post(f"/api/calendar/events?farm_id={judge}", json={
-        "title": "x", "start_iso": "2026-09-29T08:00:00+08:00"})).status_code == 403
+    assert (await http.get(f"/api/calendar/events?farm_id={judge}")).status_code in (404, 405)  # removed
     assert (await http.delete(f"/api/calendar/google?farm_id={judge}")).status_code == 403
     status = (await http.get(f"/api/calendar/status?farm_id={judge}")).json()
     assert status["connected"] is False and status["linked_elsewhere"] is True
@@ -143,3 +141,39 @@ async def test_agent_calendar_reads_are_limited_to_the_owner_farm(monkeypatch):
     assert (await owner["check_calendar_schedule"]())["mcp_output"] == "PRIVATE-EVENT"
     assert (await owner["check_calendar_availability"]("a", "b"))["mcp_output"] == "PRIVATE-FREEBUSY"
     assert calls == ["list", "avail"]
+
+
+@pytest.mark.asyncio
+async def test_a_public_owner_farm_id_unlocks_nothing(client):
+    """Found 2026-09-26: the owner farm's id is committed in the public repo.
+    With the owner pinned by the deployment, that id alone must not read or
+    write the calendar, re-link it, unlink it, or reveal/rotate the restore
+    code -- while the admin, who holds the code, can still restore the farm."""
+    http, session, monkeypatch = client
+    team = await _farm(http, "Team")
+    code = (await http.get(f"/farms/{team}/restore-code")).json()["code"]  # before the pin
+    monkeypatch.setenv("CALENDAR_OWNER_FARM_ID", team)
+
+    for method, path in [
+        ("get", f"/api/calendar/events?farm_id={team}"),
+        ("post", f"/api/calendar/events?farm_id={team}"),
+        ("get", f"/api/calendar/mcp/events?farm_id={team}"),
+        ("post", f"/api/calendar/mcp/events?farm_id={team}"),
+    ]:
+        assert (await getattr(http, method)(path)).status_code in (404, 405), path
+    assert (await http.get(f"/api/calendar/auth-url?farm_id={team}")).status_code == 409  # no re-link
+    assert (await http.get(f"/api/calendar/login?farm_id={team}")).status_code == 409
+    assert (await http.delete(f"/api/calendar/google?farm_id={team}")).status_code == 403
+    assert (await http.get(f"/farms/{team}/restore-code")).status_code == 403
+    assert (await http.post(f"/farms/{team}/restore-code/rotate")).status_code == 403
+    assert (await http.post(f"/farms/{team}/calendar-proposals", json={
+        "title": "anything", "start_iso": "2026-09-29T08:00:00+08:00"})).status_code == 403
+
+    # The admin, holding the code, still gets the farm back.
+    r = await http.post("/restore", json={"code": code})
+    assert r.status_code == 200 and r.json()["farm"]["farm_id"] == team
+
+    # Other farms are unaffected: their own code still shows and rotates.
+    other = await _farm(http, "Other")
+    assert (await http.get(f"/farms/{other}/restore-code")).status_code == 200
+    assert (await http.post(f"/farms/{other}/restore-code/rotate")).status_code == 200

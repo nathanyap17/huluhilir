@@ -58,6 +58,13 @@ def get_calendar_owner() -> str | None:
         return None
 
 
+def owner_is_pinned() -> bool:
+    """True when the deployment fixes the owner farm (CALENDAR_OWNER_FARM_ID).
+    Then owner-level actions that the farm_id alone would otherwise authorise
+    (unlink, reading/rotating the restore code) are refused over the API."""
+    return bool(os.environ.get("CALENDAR_OWNER_FARM_ID", "").strip())
+
+
 def set_calendar_owner(farm_id: str) -> None:
     OWNER_FILE.write_text(json.dumps({"farm_id": farm_id}), encoding="utf-8")
 
