@@ -16,7 +16,7 @@ from app.models.agent import AgentRun, CalendarEventProposal, CouncilDebate, Rec
 from app.models.core import Block
 from app.schemas.advisor import AdvisorVerdictOut
 from app.schemas.agent import AgentRunOut
-from app.tools.advisor import should_diagnose
+from app.tools.advisor import next_best_check, should_diagnose
 from app.tools.weather import get_weather
 
 router = APIRouter(tags=["agent"])
@@ -165,7 +165,10 @@ async def get_advisor(farm_id: str, session: AsyncSession = Depends(get_session)
     weather = get_weather(farm_id)
     rain_48h = sum(o.rainfall_mm for o in weather.rainfall_7d[:2])
     rain_since_last = sum(o.rainfall_mm for o in weather.rainfall_7d)
-    return await should_diagnose(session, farm_id, rain_48h_mm=rain_48h, rain_since_last_cycle_mm=rain_since_last)
+    verdict = await should_diagnose(session, farm_id, rain_48h_mm=rain_48h, rain_since_last_cycle_mm=rain_since_last)
+    return await next_best_check(
+        session, farm_id, verdict, [(f.forecast_date, f.rainfall_mm) for f in weather.forecast_7d]
+    )
 
 
 class ChatTurn(BaseModel):

@@ -49,7 +49,9 @@ export default function WalkScreen() {
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [baroRelM, setBaroRelM] = useState<number | null>(null);
+  // Median barometer reading at the block; the SERVER turns it into a height
+  // against the walk's stored baseline (restart-safe; fixed 2026-09-27).
+  const [pressureHpa, setPressureHpa] = useState<number | null>(null);
   const [positionSamples, setPositionSamples] = useState<[number, number][]>([]);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [voiceUri, setVoiceUri] = useState<string | null>(null);
@@ -185,6 +187,13 @@ export default function WalkScreen() {
     });
     if (!walkSessionId) return;
 
+    // Collect pressure for the whole capture window, not one instant: the
+    // median of ~5 s of readings rejects sensor noise (~0.1 hPa ≈ 1 m).
+    const pressures: number[] = [];
+    const pressureSub = farm?.barometer_available
+      ? Barometer.addListener(({ pressure }) => pressures.push(pressure))
+      : null;
+
     while (Date.now() - start < SAMPLE_WINDOW_MS) {
       try {
         const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
@@ -217,27 +226,50 @@ export default function WalkScreen() {
     }
     setPositionSamples(samples);
 
-    if (farm?.barometer_available) {
-      const currentHpa = await readBarometerOnce().catch(() => null);
-      const baselineHpa = await getBaselineHpa(walkSessionId);
-      if (currentHpa !== null && baselineHpa !== null) {
-        setBaroRelM(relativeAltitudeM(currentHpa, baselineHpa));
-      }
+    pressureSub?.remove();
+    if (pressures.length > 0) {
+      const sorted = [...pressures].sort((a, b) => a - b);
+      setPressureHpa(sorted[Math.floor(sorted.length / 2)]);
     }
 
     setPhase("camera");
   }
 
-  async function getBaselineHpa(walkSessionId: string): Promise<number | null> {
-    const { data } = await api.GET("/farms/{farm_id}", {
-      params: { path: { farm_id: farm!.farm_id! } },
-    });
-    void data; // FarmOut doesn't carry the baseline; re-derive isn't available client-side.
-    // The baseline is stored server-side on the walk session, not returned
-    // to the client after creation -- MINIMAL-tier farms never call this
-    // path (barometer_available is false), and on OPTIMISED tier we cache
-    // the very first reading of this screen's lifetime as the baseline.
-    return cachedBaselineRef.current;
+
+  // Barometer phones: when every block has a reading and no two are within
+  // 2 m, the slope is already known -- finish the ranking here and skip the
+  // "which is higher?" page. Otherwise (no barometer, missing readings, or
+  // close pairs the sensor can't separate) the farmer answers as before.
+  const [continuing, setContinuing] = useState(false);
+  async function handleContinue() {
+    if (!farm) return;
+    if (!farm.barometer_available) {
+      router.push("/(setup)/elevation");
+      return;
+    }
+    setContinuing(true);
+    setError(null);
+    try {
+      const { data } = await api.GET("/farms/{farm_id}/elevation-questions", {
+        params: { path: { farm_id: farm.farm_id! } },
+      });
+      const q = data as unknown as { barometer_used?: boolean; questions?: unknown[] } | undefined;
+      if (q?.barometer_used && (q.questions ?? []).length === 0) {
+        const { error: err } = await api.POST("/farms/{farm_id}/resolve-elevation", {
+          params: { path: { farm_id: farm.farm_id! } },
+          body: { answers: [] },
+        });
+        if (err) throw new Error("Could not work out the slope");
+        useSessionStore.getState().setFarm({ ...farm, setup_completed_at: new Date().toISOString() });
+        router.replace("/(setup)/validator");
+        return;
+      }
+      router.push("/(setup)/elevation");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Something went wrong. Try again.");
+    } finally {
+      setContinuing(false);
+    }
   }
 
   async function handleTakePhoto() {
@@ -276,7 +308,7 @@ export default function WalkScreen() {
     setIsExternal(false);
     setOwnerName("");
     setOwnerPhone("");
-    setBaroRelM(null);
+    setPressureHpa(null);
     setPositionSamples([]);
   }
 
@@ -299,7 +331,7 @@ export default function WalkScreen() {
           photo_uri: photoUpload.uri,
           voice_label_uri: voiceLabelUri,
           position_samples: positionSamples,
-          baro_rel_m: baroRelM ?? undefined,
+          pressure_hpa: pressureHpa ?? undefined,
           drainage,
           is_external: isExternal,
           external_owner_name: isExternal ? ownerName.trim() || undefined : undefined,
@@ -468,9 +500,14 @@ export default function WalkScreen() {
 
       <ScreenFooter>
         <PrimaryButton
-          label={`Continue to elevation (${blocks.length} block${blocks.length === 1 ? "" : "s"})`}
-          onPress={() => router.push("/(setup)/elevation")}
-          disabled={blocks.length < 1 || phase === "marking"}
+          label={
+            farm?.barometer_available
+              ? `Continue (${blocks.length} block${blocks.length === 1 ? "" : "s"})`
+              : `Continue to elevation (${blocks.length} block${blocks.length === 1 ? "" : "s"})`
+          }
+          onPress={handleContinue}
+          loading={continuing}
+          disabled={blocks.length < 1 || phase === "marking" || continuing}
           variant="secondary"
         />
       </ScreenFooter>

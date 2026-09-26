@@ -19,6 +19,10 @@ class AdvisorVerdictOut(ORMModel):
     reason_ms: str = Field(max_length=300)
     suggested_date: Optional[date] = None
     days_until_recommended: Optional[int] = None
+    # 2026-09-27: when the next check is most useful, and why (app/tools/advisor.py next_best_check)
+    next_check_basis: Optional[str] = Field(default=None, max_length=30)
+    next_check_ms: Optional[str] = Field(default=None, max_length=300)
+    next_check_en: Optional[str] = Field(default=None, max_length=300)
     last_cycle_at: Optional[datetime] = None
     last_cycle_result: Optional[str] = None
     days_since_last_cycle: int

@@ -1,6 +1,5 @@
 import type { ComponentType } from "react";
-import { StyleSheet, Text, View } from "react-native";
-import { colors, fonts, radius, spacing } from "../constants/theme";
+import { TileWalkMap } from "./TileWalkMap";
 import type { WalkMapViewProps } from "./walkMapTypes";
 
 /**
@@ -43,37 +42,8 @@ if (MAP_ENABLED) {
 }
 
 export function SafeWalkMapView(props: WalkMapViewProps) {
-  if (!WalkMapViewImpl) {
-    const { current, blocks } = props;
-    return (
-      <View style={styles.fallback}>
-        <Text style={styles.fallbackTitle}>Live map unavailable in this build</Text>
-        <Text style={styles.fallbackBody}>
-          Your position and blocks are still tracked normally below.
-        </Text>
-        {current && (
-          <Text style={styles.fallbackDetail}>
-            {current.lat.toFixed(5)}, {current.lon.toFixed(5)} -- {blocks.length} block
-            {blocks.length === 1 ? "" : "s"} marked
-          </Text>
-        )}
-      </View>
-    );
-  }
+  // Default: the key-free OpenStreetMap tile map (what v1 used). The native
+  // Google map only when explicitly enabled with a Maps key.
+  if (!WalkMapViewImpl) return <TileWalkMap {...props} />;
   return <WalkMapViewImpl {...props} />;
 }
-
-const styles = StyleSheet.create({
-  fallback: {
-    minHeight: 140,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: spacing.lg,
-    gap: spacing.xs,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-  },
-  fallbackTitle: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.brandDark, textAlign: "center" },
-  fallbackBody: { fontFamily: fonts.body, fontSize: 12, color: colors.textMuted, textAlign: "center" },
-  fallbackDetail: { fontFamily: fonts.bodySemi, fontSize: 12, color: colors.text, marginTop: spacing.xs },
-});

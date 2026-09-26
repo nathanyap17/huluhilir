@@ -21,7 +21,7 @@ from app.models.agent import AgentRun, CalendarEventProposal, Recommendation
 from app.models.base import KUCHING_TZ, now_kuching
 from app.models.core import Block, Farm
 from app.models.diagnosis import Diagnosis, DiagnosisCycle, Observation, RiskAssessment
-from app.tools.advisor import should_diagnose
+from app.tools.advisor import next_best_check, should_diagnose
 from app.tools.weather import get_weather
 
 _STATE_EN = {"protected": "Protected", "alerted": "Alerted", "harmed": "Harmed", "overrun": "Overrun"}
@@ -148,8 +148,15 @@ async def build_farm_context(session: AsyncSession, farm_id: str) -> str:
         rain_48h_mm=sum(o.rainfall_mm for o in weather.rainfall_7d[:2]),
         rain_since_last_cycle_mm=past,
     )
+    verdict = await next_best_check(
+        session, farm_id, verdict, [(f.forecast_date, f.rainfall_mm) for f in weather.forecast_7d]
+    )
     lines.append(
         f"ADVISOR VERDICT (should the farmer diagnose again?): urgency {verdict.urgency}, "
         f"reason: {verdict.reason_ms}; days since last cycle: {verdict.days_since_last_cycle}."
+    )
+    lines.append(
+        f"NEXT BEST CHECK (use this when asked when to check next): {verdict.suggested_date} "
+        f"({verdict.next_check_en})"
     )
     return "\n".join(lines)

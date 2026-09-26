@@ -52,7 +52,7 @@ async def _walk_three_blocks(http, barometer: bool = False, baro_values=None):
             "position_samples": [[lat, lon], [lat + 0.00001, lon], [lat, lon + 0.00001]],
             "drainage": "fair",
         }
-        if baro_values:
+        if baro_values and baro_values[i] is not None:
             payload["baro_rel_m"] = baro_values[i]
         block = (await http.post(f"/farms/{farm['farm_id']}/blocks", json=payload)).json()
         block_ids.append(block["block_id"])
@@ -208,3 +208,62 @@ async def test_no_land_boundary_field_is_accepted(client):
     payload = resp.text.lower()
     for forbidden in ("boundary", "polygon", "geometry", "parcel", "ownership", "title_deed"):
         assert forbidden not in payload
+
+
+async def _walk_with_pressure(http, pressures):
+    """Barometer phone sending raw pressure per block (build 22+)."""
+    user = (await http.post("/users", json={"display_name": "N", "district": "Julau"})).json()
+    farm = (await http.post("/farms", json={
+        "user_id": user["user_id"], "name": "Kebun Baro",
+        "centroid_lat": 1.5533, "centroid_lon": 110.3592, "barometer_available": True,
+    })).json()
+    positions = [(1.5540, 110.3588), (1.5535, 110.3592), (1.5528, 110.3596)]
+    ids = []
+    for i, ((lat, lon), p) in enumerate(zip(positions, pressures)):
+        block = (await http.post(f"/farms/{farm['farm_id']}/blocks", json={
+            "label": f"Blok {i + 1}", "photo_uri": "/media/t.jpg",
+            "position_samples": [[lat, lon], [lat, lon + 0.00001]], "drainage": "fair",
+            "pressure_hpa": p,
+        })).json()
+        ids.append((block["block_id"], block["baro_rel_m"]))
+    return farm, ids
+
+
+@pytest.mark.asyncio
+async def test_server_derives_altitude_from_raw_pressure_and_skips_questions(client):
+    """2026-09-27: altitude is computed on the server against the walk's
+    baseline, so a restarted app can't lose it. Well-separated blocks need
+    no questions at all, and the ranking follows the barometer."""
+    http, _ = client
+    # ~1 hPa is ~8 m: block 2 highest, block 1 middle (baseline), block 3 lowest.
+    farm, ids = await _walk_with_pressure(http, [1000.0, 999.0, 1000.6])
+    (b1, h1), (b2, h2), (b3, h3) = ids
+    assert h1 == 0.0 and h2 > 7.5 and h3 < -4.5
+
+    q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
+    assert q["barometer_used"] is True and q["questions"] == []
+
+    r = (await http.post(f"/farms/{farm['farm_id']}/resolve-elevation", json={"answers": []})).json()
+    assert r["ranks"][b2] == 1 and r["ranks"][b1] == 2 and r["ranks"][b3] == 3
+
+
+@pytest.mark.asyncio
+async def test_farmer_answer_on_a_close_pair_does_not_outrank_a_clearly_higher_block(client):
+    """2026-09-27: a farmer's answer about two near-equal blocks used to lift
+    the answered block above one the barometer put metres higher."""
+    http, _ = client
+    farm, block_ids = await _walk_three_blocks(http, barometer=True, baro_values=[10.0, 5.0, 4.5])
+    # Only the 0.5 m pair (blocks 2 and 3) is asked; the farmer says 3 is higher.
+    answers = [{"block_a_id": block_ids[1], "block_b_id": block_ids[2], "answer": "b_higher"}]
+    r = (await http.post(f"/farms/{farm['farm_id']}/resolve-elevation", json={"answers": answers})).json()
+    assert r["ranks"][block_ids[0]] == 1  # still highest, 5 m above the others
+    assert r["ranks"][block_ids[2]] == 2 and r["ranks"][block_ids[1]] == 3  # farmer wins the close pair
+
+
+@pytest.mark.asyncio
+async def test_incomplete_barometer_readings_fall_back_to_asking_every_pair(client):
+    http, _ = client
+    farm, block_ids = await _walk_three_blocks(http, barometer=True, baro_values=[10.0, None, 2.0])
+    q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
+    assert q["barometer_used"] is False
+    assert len(q["questions"]) == 3

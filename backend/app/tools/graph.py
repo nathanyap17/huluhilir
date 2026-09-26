@@ -97,14 +97,39 @@ def resolve_elevation_ranks(
                     "delta_h_m": abs(delta_h),
                 })
 
-    def sort_key(block_id: str):
-        return (
-            -above_count.get(block_id, 0),
-            -(baro_rel_by_block or {}).get(block_id, 0.0),
-            block_id,
-        )
+    baro = baro_rel_by_block or {}
+    if block_ids and all(b in baro for b in block_ids):
+        # OPTIMISED tier with a reading for EVERY block: the barometer sets
+        # the order, and each farmer answer (asked only where the sensor
+        # could not separate two blocks) moves just that pair. Found
+        # 2026-09-27: the scoring path below let any answered block jump
+        # above blocks the barometer put metres higher. Farmer still wins
+        # every pair they answered; loop bounded for intransitive answers.
+        ordered = sorted(block_ids, key=lambda b: (-baro[b], b))
+        for _ in range(len(block_ids) ** 2):
+            moved = False
+            for (block_a, block_b), answer in farmer_pairs.items():
+                higher = block_a if answer == "a_higher" else block_b
+                lower = block_b if answer == "a_higher" else block_a
+                if higher not in ordered or lower not in ordered:
+                    continue
+                if ordered.index(higher) > ordered.index(lower):
+                    ordered.remove(higher)
+                    ordered.insert(ordered.index(lower), higher)
+                    moved = True
+            if not moved:
+                break
+    else:
+        # MINIMAL tier (or incomplete readings): farmer answers decide.
+        def sort_key(block_id: str):
+            return (
+                -above_count.get(block_id, 0),
+                -baro.get(block_id, 0.0),
+                block_id,
+            )
 
-    ordered = sorted(block_ids, key=sort_key)
+        ordered = sorted(block_ids, key=sort_key)
+
     ranks = {block_id: i + 1 for i, block_id in enumerate(ordered)}
     return ranks, conflicts
 

@@ -90,3 +90,131 @@ async def should_diagnose(
         blocks_all_protected=blocks_all_protected,
         computed_at=now,
     )
+
+
+# ---------------------------------------------------------------------------
+# Next best check (2026-09-27). should_diagnose() answers "is a check due
+# NOW?"; this answers "WHEN is the next check most useful?", so the farmer
+# doesn't photograph every block when nothing has changed.
+#
+# Deterministic, from the farm's own data:
+#   * rain pulses in the forecast -- the knowledge base: "inspect a few days
+#     after heavy rain, because that is when new infections happen" (kb_051;
+#     also kb_011, kb_020);
+#   * approved treatments -- re-check once the treatment has had its
+#     rain-fast period (from the rulebook) and a few days to act;
+#   * block states and time since the last check (the same floors as above).
+# ---------------------------------------------------------------------------
+
+HEAVY_DAY_MM = 20.0        # a forecast day that can drive new infection
+DAYS_AFTER_PULSE = 2       # "a few days after heavy rain" (kb_051) -- design choice
+DAYS_AFTER_TREATMENT = 3   # after the rain-fast period, let the treatment act
+ROUTINE_DAYS = {"infected": ACTIVE_INFECTION_FLOOR_DAYS, "protected": STABLE_DAYS_CEILING, "other": 7}
+
+
+def _fmt(d) -> tuple[str, str]:
+    days_ms = ["Isnin", "Selasa", "Rabu", "Khamis", "Jumaat", "Sabtu", "Ahad"]
+    days_en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    return f"{days_ms[d.weekday()]} {d.day}/{d.month}", f"{days_en[d.weekday()]} {d.day}/{d.month}"
+
+
+async def next_best_check(
+    session: AsyncSession,
+    farm_id: str,
+    verdict: AdvisorVerdictOut,
+    forecast: list[tuple[object, float]],
+) -> AdvisorVerdictOut:
+    """Fill verdict.suggested_date / days_until_recommended and a bilingual
+    reason. `forecast` is [(date or ISO string, rainfall_mm), ...] for the
+    coming days. Never raises: with no data it falls back to the routine
+    interval. The farmer may always check sooner (rule: the Advisor never
+    blocks a diagnosis)."""
+    from datetime import date as _date, datetime as _dt, timedelta
+
+    from app.models.agent import CalendarEventProposal, Recommendation
+    from app.models.knowledge import TreatmentOption
+
+    today = verdict.computed_at.date()
+
+    def as_date(v):
+        if isinstance(v, _dt):
+            return v.date()
+        if isinstance(v, _date):
+            return v
+        return _date.fromisoformat(str(v)[:10])
+
+    # Not sooner than the incubation floor after the last check.
+    floor = today
+    if verdict.last_cycle_at is not None:
+        floor = max(today, verdict.last_cycle_at.date() + timedelta(days=INCUBATION_FLOOR_DAYS))
+
+    candidates: list[tuple[_date, str, str, str]] = []  # (date, basis, ms, en)
+
+    if str(getattr(verdict.urgency, "value", verdict.urgency)) == "high":
+        candidates.append((today, "due_now", "Periksa hari ini: " + verdict.reason_ms,
+                           "Check today: a check is due now."))
+
+    pulse_days = sorted(as_date(d) for d, mm in forecast if mm >= HEAVY_DAY_MM and as_date(d) >= today)
+    if pulse_days:
+        pulse = pulse_days[0]
+        p_ms, p_en = _fmt(pulse)
+        candidates.append((
+            pulse + timedelta(days=DAYS_AFTER_PULSE), "rain_pulse",
+            f"Hujan lebat dijangka {p_ms}. Periksa {DAYS_AFTER_PULSE} hari selepas itu, apabila jangkitan baharu berlaku.",
+            f"Heavy rain is expected {p_en}. Check {DAYS_AFTER_PULSE} days after, when new infections happen.",
+        ))
+
+    # Approved (or synced) sprays/drenches: re-check after rain-fast + a few days.
+    rows = (
+        await session.execute(
+            select(CalendarEventProposal, Recommendation, TreatmentOption)
+            .join(Recommendation, CalendarEventProposal.recommendation_id == Recommendation.recommendation_id)
+            .outerjoin(TreatmentOption, Recommendation.treatment_id == TreatmentOption.treatment_id)
+            .where(
+                CalendarEventProposal.farm_id == farm_id,
+                CalendarEventProposal.status.in_(("approved", "deployed")),
+                Recommendation.action_type.in_(("spray", "drench")),
+            )
+        )
+    ).all()
+    for proposal, rec, treatment in rows:
+        start = as_date(proposal.start_time)
+        if start < today - timedelta(days=DAYS_AFTER_TREATMENT):
+            continue  # an old treatment; its follow-up window has passed
+        rainfast_days = -(-((treatment.rainfast_hours if treatment else None) or 0) // 24)
+        when = start + timedelta(days=rainfast_days + DAYS_AFTER_TREATMENT)
+        s_ms, s_en = _fmt(start)
+        candidates.append((
+            when, "treatment_follow_up",
+            f"Rawatan dijadualkan {s_ms}. Periksa semula selepas ia sempat berkesan.",
+            f"A treatment is scheduled for {s_en}. Re-check once it has had time to work.",
+        ))
+
+    # Routine interval from the last check, by the farm's current state.
+    if verdict.last_cycle_at is None:
+        candidates.append((today, "first_check", "Belum ada diagnosis. Periksa bila-bila masa untuk bermula.",
+                           "No check yet. Start whenever you're ready."))
+    else:
+        state = ("infected" if verdict.reason_code in ("active_infection", "monitoring_infection")
+                 else "protected" if verdict.blocks_all_protected else "other")
+        when = verdict.last_cycle_at.date() + timedelta(days=ROUTINE_DAYS[state])
+        candidates.append((
+            when, "routine",
+            "Jangkitan aktif: periksa susulan." if state == "infected" else "Pemeriksaan rutin mengikut keadaan ladang.",
+            "Active infection: follow-up check." if state == "infected" else "Routine check for your farm's condition.",
+        ))
+
+    chosen = min(candidates, key=lambda c: max(c[0], floor))
+    suggested = max(chosen[0], floor)
+    s_ms, s_en = _fmt(suggested)
+    if suggested == today:
+        when_ms, when_en = "hari ini", "today"
+    else:
+        when_ms, when_en = s_ms, s_en
+
+    verdict.suggested_date = suggested
+    verdict.days_until_recommended = (suggested - today).days
+    verdict.next_check_basis = chosen[1]
+    verdict.next_check_ms = f"Pemeriksaan seterusnya: {when_ms}. {chosen[2]}"[:300]
+    verdict.next_check_en = f"Next check: {when_en}. {chosen[3]}"[:300]
+    return verdict

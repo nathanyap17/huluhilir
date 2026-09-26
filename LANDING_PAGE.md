@@ -177,7 +177,7 @@ The RootAgent defers the drench, orders drain clearing today, and schedules the 
 ## 7. User Flow
 
 1.  **Open the app.** A new phone offers three ways in: **Try the demo farm** (a ready-made farm with diagnoses, agents and 3D terrain), **Set up my farm**, or **Restore my farm** (a private code from Settings on the old phone).
-2.  **Set up once.** Register (the phone checks for a barometer automatically), then walk the farm: at each block, tap to mark it, take a photo and record its spoken name. A live position and altitude readout shows progress (the live map view is off in this build until a Maps key is configured). Answer a few "which block is higher?" questions — your answer always wins — and the downhill graph is built.
+2.  **Set up once.** Register (the phone checks for a barometer automatically), then walk the farm: at each block, tap to mark it, take a photo and record its spoken name. A live map (OpenStreetMap) shows your walk and every marked block, with a live position and altitude readout. Answer a few "which block is higher?" questions — your answer always wins — and the downhill graph is built.
 3.  **Home, from day one.** The **rain card** shows the coming rain pulses from the official forecast (up to 7 days); the **Priority action card** shows the one thing to do next with its metrics (risk, confidence, arrival, rain); the **Advisor card** says whether a diagnosis is due. All of this works with zero photos.
 4.  **Ask the Advisor.** Type `/diagnose` for a verdict, or ask anything about your farm. Tap **Begin Diagnosis** whenever you like.
 5.  **Photograph each block.** DiagnosisCoordinator guides you block by block; a wrong-target photo prompts a retake.

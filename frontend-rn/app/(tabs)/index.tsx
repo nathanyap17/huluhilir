@@ -17,7 +17,7 @@ import { colors, fonts, spacing } from "../../src/constants/theme";
  */
 export default function HomeScreen() {
   const farm = useSessionStore((s) => s.farm);
-  const { t } = useT();
+  const { t, lang } = useT();
 
   const dashboardQuery = useQuery({
     queryKey: ["dashboard", farm?.farm_id],
@@ -64,6 +64,11 @@ export default function HomeScreen() {
             <Text style={styles.cardLabel}>{t("advisor_label")}</Text>
             <Text style={styles.actionType}>{t(`urgency_${dashboard.advisor.urgency}` as StringKey)}</Text>
             <Text style={styles.cardSub}>{dashboard.advisor.reason_ms}</Text>
+            {(lang === "en" ? dashboard.advisor.next_check_en : dashboard.advisor.next_check_ms) && (
+              <Text style={styles.nextCheck}>
+                {lang === "en" ? dashboard.advisor.next_check_en : dashboard.advisor.next_check_ms}
+              </Text>
+            )}
             <Text style={styles.linkText}>{t("ask_more")}</Text>
           </Card>
         </Pressable>
@@ -94,5 +99,8 @@ const styles = StyleSheet.create({
   cardLabel: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.2, color: colors.textMuted, textTransform: "uppercase" },
   cardSub: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.textMuted },
   actionType: { fontFamily: fonts.displayBold, fontSize: 19, color: colors.text },
+  // The next best check: the Advisor's one scheduled suggestion, so it reads
+  // as the card's key line (2026-09-27).
+  nextCheck: { fontFamily: fonts.bodySemi, fontSize: 15, lineHeight: 21, color: colors.text, paddingTop: spacing.xs },
   linkText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.accentInk, paddingTop: spacing.xs },
 });

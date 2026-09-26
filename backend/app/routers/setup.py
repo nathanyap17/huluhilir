@@ -306,6 +306,12 @@ class BlockCaptureRequest(BaseModel):
         description="(lat, lon) pairs from the +/-5s capture window; centroid is their median"
     )
     baro_rel_m: Optional[float] = None
+    pressure_hpa: Optional[float] = Field(
+        default=None,
+        description="Raw barometer reading at this block (median of the capture window). "
+        "Preferred over baro_rel_m: the server measures it against the walk session's "
+        "stored baseline, so an app restart mid-walk can't lose the reference.",
+    )
     drainage: str = "fair"
     area_ha: Optional[float] = None
     vine_count: Optional[int] = None
@@ -313,6 +319,25 @@ class BlockCaptureRequest(BaseModel):
     is_external: bool = False
     external_owner_name: Optional[str] = None
     external_owner_phone: Optional[str] = None
+
+
+async def _relative_altitude_m(session: AsyncSession, farm_id: str, pressure_hpa: float) -> float:
+    """Height of this block relative to the walk's baseline pressure
+    (international barometric formula; higher block -> positive). The
+    baseline lives on the walk session; if none was stored, this first
+    reading becomes it (so the first block is 0 m)."""
+    farm = await session.get(Farm, farm_id)
+    walk = await session.get(WalkSession, farm.walk_session_id) if farm and farm.walk_session_id else None
+    if walk is None:
+        walk = WalkSession(farm_id=farm_id)
+        session.add(walk)
+        await session.flush()
+        if farm is not None:
+            farm.walk_session_id = walk.walk_session_id
+    if walk.baseline_pressure_hpa is None:
+        walk.baseline_pressure_hpa = pressure_hpa
+        walk.baseline_captured_at = now_kuching()
+    return round(44330.0 * (1.0 - (pressure_hpa / walk.baseline_pressure_hpa) ** (1.0 / 5.255)), 2)
 
 
 @router.post("/farms/{farm_id}/blocks", response_model=BlockOut, status_code=201)
@@ -327,7 +352,9 @@ async def capture_block(
     existing = (await session.execute(select(Block).where(Block.farm_id == farm_id))).scalars().all()
     provisional_rank = len(existing) + 1
 
-    payload = req.model_dump(exclude={"position_samples"})
+    payload = req.model_dump(exclude={"position_samples", "pressure_hpa"})
+    if req.pressure_hpa is not None:
+        payload["baro_rel_m"] = await _relative_altitude_m(session, farm_id, req.pressure_hpa)
     block = Block(
         farm_id=farm_id,
         centroid_lat=lat,
@@ -338,6 +365,13 @@ async def capture_block(
     session.add(block)
     await session.commit()
     return BlockOut.model_validate(block)
+
+
+def _complete_baro(blocks) -> dict[str, float] | None:
+    """Barometer heights, only when EVERY block has one; otherwise None."""
+    if blocks and all(b.baro_rel_m is not None for b in blocks):
+        return {b.block_id: b.baro_rel_m for b in blocks}
+    return None
 
 
 @router.get("/farms/{farm_id}/elevation-questions")
@@ -355,14 +389,15 @@ async def get_elevation_questions(farm_id: str, session: AsyncSession = Depends(
         raise HTTPException(404, "farm not found")
 
     blocks = (await session.execute(select(Block).where(Block.farm_id == farm_id))).scalars().all()
-    baro = {b.block_id: b.baro_rel_m for b in blocks if b.baro_rel_m is not None} or None
-    if farm.elevation_tier == "minimal":
-        baro = None
+    baro = _complete_baro(blocks) if farm.elevation_tier == "optimised" else None
 
     pairs = pairs_needing_farmer_input([b.block_id for b in blocks], baro)
     labels = {b.block_id: b.label for b in blocks}
     return {
         "elevation_tier": farm.elevation_tier,
+        # False on a barometer phone whose readings are incomplete: then every
+        # pair is asked, because a partial set can't order the farm honestly.
+        "barometer_used": baro is not None,
         "questions": [
             {"block_a_id": a, "block_b_id": b, "block_a_label": labels.get(a), "block_b_label": labels.get(b)}
             for a, b in pairs
@@ -393,7 +428,8 @@ async def resolve_elevation(
     if not blocks:
         raise HTTPException(400, "farm has no blocks to rank")
 
-    baro = {b.block_id: b.baro_rel_m for b in blocks if b.baro_rel_m is not None} or None
+    farm = await session.get(Farm, farm_id)
+    baro = _complete_baro(blocks) if farm is not None and farm.elevation_tier == "optimised" else None
     farmer_pairs = {(a.block_a_id, a.block_b_id): a.answer for a in req.answers}
 
     ranks, conflicts = resolve_elevation_ranks([b.block_id for b in blocks], farmer_pairs, baro)

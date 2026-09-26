@@ -24,7 +24,7 @@ from app.schemas.dashboard import (
     TerrainNode,
 )
 from app.schemas.farm import BlockOut, FlowEdgeOut
-from app.tools.advisor import should_diagnose
+from app.tools.advisor import next_best_check, should_diagnose
 from app.tools.terrain import compute_terrain_layout
 from app.tools.weather import get_weather
 
@@ -63,6 +63,9 @@ async def get_dashboard(farm_id: str, session: AsyncSession = Depends(get_sessio
     rain_since_last = sum(o.rainfall_mm for o in weather.rainfall_7d)
     advisor = await should_diagnose(
         session, farm_id, rain_48h_mm=rain_48h, rain_since_last_cycle_mm=rain_since_last
+    )
+    advisor = await next_best_check(
+        session, farm_id, advisor, [(f.forecast_date, f.rainfall_mm) for f in weather.forecast_7d]
     )
 
     # actions[0] only -- the first-sequenced action of the MOST RECENT run that

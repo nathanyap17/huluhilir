@@ -578,6 +578,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/demo/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Snapshot Status */
+        get: operations["snapshot_status_demo_snapshot_get"];
+        put?: never;
+        /**
+         * Capture Snapshot
+         * @description Freeze the demo farm as it is now (replaces any earlier snapshot).
+         */
+        post: operations["capture_snapshot_demo_snapshot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Snapshot
+         * @description Put the demo farm back to the snapshot now (e.g. before a judging slot).
+         */
+        post: operations["restore_snapshot_demo_restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/media": {
         parameters: {
             query?: never;
@@ -916,7 +957,9 @@ export interface paths {
         post?: never;
         /**
          * Unlink Google Calendar
-         * @description Owner-only: forget the Google token so another farm may link.
+         * @description Owner-only: forget the Google token so another farm may link. Refused
+         *     when the deployment pins the owner (CALENDAR_OWNER_FARM_ID, the cloud):
+         *     that farm_id is not a secret, so it cannot authorise unlinking there.
          */
         delete: operations["unlink_google_calendar_api_calendar_google_delete"];
         options?: never;
@@ -968,56 +1011,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/calendar/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Google Calendar Events
-         * @description List upcoming Google Calendar events (owning farm only -- this is a
-         *     real person's calendar).
-         */
-        get: operations["list_google_calendar_events_calendar_events_get"];
-        put?: never;
-        /**
-         * Create Google Calendar Event
-         * @description Create an event on Google Calendar directly (owning farm only).
-         */
-        post: operations["create_google_calendar_event_calendar_events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/calendar/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Google Calendar Events
-         * @description List upcoming Google Calendar events (owning farm only -- this is a
-         *     real person's calendar).
-         */
-        get: operations["list_google_calendar_events_api_calendar_events_get"];
-        put?: never;
-        /**
-         * Create Google Calendar Event
-         * @description Create an event on Google Calendar directly (owning farm only).
-         */
-        post: operations["create_google_calendar_event_api_calendar_events_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/calendar/mcp/status": {
         parameters: {
             query?: never;
@@ -1032,24 +1025,6 @@ export interface paths {
         get: operations["get_google_calendar_mcp_status_api_calendar_mcp_status_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/calendar/mcp/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Events Via Mcp */
-        get: operations["list_events_via_mcp_api_calendar_mcp_events_get"];
-        put?: never;
-        /** Create Event Via Mcp */
-        post: operations["create_event_via_mcp_api_calendar_mcp_events_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1075,8 +1050,37 @@ export interface paths {
          * Create Calendar Proposal
          * @description Create a draft calendar proposal requiring farmer confirmation (Rule 13).
          *     Does NOT write to Google Calendar until explicitly approved.
+         *
+         *     Free-text proposals are refused for the deployment's owner farm: its
+         *     farm_id is public, and approving free text would write anything to the
+         *     team's calendar. The app never uses this route; its proposals come from
+         *     the agent run or /recommendations/{id}/calendar-proposal.
          */
         post: operations["create_calendar_proposal_farms__farm_id__calendar_proposals_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations/{recommendation_id}/calendar-proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Proposal For Recommendation
+         * @description Priority card -> "Add to calendar": the proposal card for THIS
+         *     recommendation, shown in the Advisor for Approve/Reject. Returns the
+         *     existing pending (or already approved) proposal; otherwise drafts a new
+         *     one with the same slot rule the agent run uses. Never writes to a
+         *     calendar -- approval still happens on the card (rule 13).
+         */
+        post: operations["proposal_for_recommendation_recommendations__recommendation_id__calendar_proposal_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1209,6 +1213,11 @@ export interface components {
          * @enum {string}
          */
         ActionType: "spray" | "drench" | "clear_drain" | "isolate_vine" | "remove_vine" | "inspect" | "notify_neighbour" | "no_action";
+        /** AdminCode */
+        AdminCode: {
+            /** Restore Code */
+            restore_code: string;
+        };
         /**
          * AdvisorUrgency
          * @enum {string}
@@ -1229,6 +1238,12 @@ export interface components {
             suggested_date?: string | null;
             /** Days Until Recommended */
             days_until_recommended?: number | null;
+            /** Next Check Basis */
+            next_check_basis?: string | null;
+            /** Next Check Ms */
+            next_check_ms?: string | null;
+            /** Next Check En */
+            next_check_en?: string | null;
             /** Last Cycle At */
             last_cycle_at?: string | null;
             /** Last Cycle Result */
@@ -1342,6 +1357,11 @@ export interface components {
             ][];
             /** Baro Rel M */
             baro_rel_m?: number | null;
+            /**
+             * Pressure Hpa
+             * @description Raw barometer reading at this block (median of the capture window). Preferred over baro_rel_m: the server measures it against the walk session's stored baseline, so an app restart mid-walk can't lose the reference.
+             */
+            pressure_hpa?: number | null;
             /**
              * Drainage
              * @default fair
@@ -2114,6 +2134,24 @@ export interface components {
          * @enum {string}
          */
         SlopeCategory: "gentle" | "moderate" | "steep";
+        /** SnapshotResult */
+        SnapshotResult: {
+            /** Rows */
+            rows: {
+                [key: string]: number;
+            };
+        };
+        /** SnapshotStatus */
+        SnapshotStatus: {
+            /** Exists */
+            exists: boolean;
+            /** Captured At */
+            captured_at?: string | null;
+            /** Restored At */
+            restored_at?: string | null;
+            /** Next Nightly Restore In S */
+            next_nightly_restore_in_s: number;
+        };
         /** SpeechTemplateOut */
         SpeechTemplateOut: {
             /** Template Id */
@@ -3357,6 +3395,92 @@ export interface operations {
             };
         };
     };
+    snapshot_status_demo_snapshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotStatus"];
+                };
+            };
+        };
+    };
+    capture_snapshot_demo_snapshot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_snapshot_demo_restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCode"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_media_media_post: {
         parameters: {
             query?: never;
@@ -3978,148 +4102,6 @@ export interface operations {
             };
         };
     };
-    list_google_calendar_events_calendar_events_get: {
-        parameters: {
-            query?: {
-                farm_id?: string | null;
-                max_results?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_google_calendar_event_calendar_events_post: {
-        parameters: {
-            query?: {
-                farm_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCalendarEventRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_google_calendar_events_api_calendar_events_get: {
-        parameters: {
-            query?: {
-                farm_id?: string | null;
-                max_results?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_google_calendar_event_api_calendar_events_post: {
-        parameters: {
-            query?: {
-                farm_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCalendarEventRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_google_calendar_mcp_status_api_calendar_mcp_status_get: {
         parameters: {
             query?: never;
@@ -4138,77 +4120,6 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
-                };
-            };
-        };
-    };
-    list_events_via_mcp_api_calendar_mcp_events_get: {
-        parameters: {
-            query?: {
-                max_results?: number;
-                farm_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_event_via_mcp_api_calendar_mcp_events_post: {
-        parameters: {
-            query?: {
-                farm_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateCalendarEventRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4263,6 +4174,37 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    proposal_for_recommendation_recommendations__recommendation_id__calendar_proposal_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recommendation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
