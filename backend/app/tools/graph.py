@@ -140,8 +140,8 @@ def pairs_needing_farmer_input(
     """Which pairs must the farmer be asked about?
 
     MINIMAL (no barometer): **every distinct pair** -- C(n, 2) questions.
-    OPTIMISED (barometer): only the pairs the sensor cannot separate
-    (Δh < 2.0 m). docs/PROJECT_SPEC.md §4.
+    OPTIMISED (barometer): every pair the sensor cannot separate
+    (Δh < 2.0 m); pairs clearly apart are never asked. docs/PROJECT_SPEC.md §4.
 
     The minimal path previously asked only the n-1 *adjacent* pairs, which is
     only sufficient when the blocks already arrive in a trustworthy order.
@@ -158,13 +158,17 @@ def pairs_needing_farmer_input(
     if not baro_rel_by_block:
         return list(itertools.combinations(block_ids, 2))
 
+    # EVERY pair the sensor can't separate, not only neighbours in barometer
+    # order (fixed 2026-09-27). On a flat patch all readings are noise, so
+    # "neighbours" in that order are as arbitrary as walk order -- the same
+    # reason the minimal path asks every pair. Three blocks within 2 m of
+    # each other -> 3 questions, four -> 6; pairs clearly apart are skipped.
     by_height = sorted(block_ids, key=lambda b: -baro_rel_by_block.get(b, 0.0))
-    ambiguous = []
-    for i in range(len(by_height) - 1):
-        a, b = by_height[i], by_height[i + 1]
-        if abs(baro_rel_by_block.get(a, 0.0) - baro_rel_by_block.get(b, 0.0)) < DELTA_H_GATE_M:
-            ambiguous.append((a, b))
-    return ambiguous
+    return [
+        (a, b)
+        for a, b in itertools.combinations(by_height, 2)
+        if abs(baro_rel_by_block.get(a, 0.0) - baro_rel_by_block.get(b, 0.0)) < DELTA_H_GATE_M
+    ]
 
 
 def build_flow_edges(farm_id: str, blocks: list[Block], source: str = "farmer") -> list[FlowEdge]:

@@ -267,3 +267,39 @@ async def test_incomplete_barometer_readings_fall_back_to_asking_every_pair(clie
     q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
     assert q["barometer_used"] is False
     assert len(q["questions"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_barometer_asks_every_pair_it_cannot_separate(client):
+    """2026-09-27, found on a real phone: three blocks within half a metre
+    (0.23 / 0.0 / -0.26 m) got 2 questions -- only neighbours in barometer
+    order, which is noise on flat ground. Every inseparable pair is asked."""
+    http, _ = client
+    farm, ids = await _walk_three_blocks(http, barometer=True, baro_values=[0.23, 0.0, -0.26])
+    q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
+    assert q["barometer_used"] is True and len(q["questions"]) == 3  # C(3, 2)
+
+    # 1.5 m steps: the two 1.5 m pairs are asked, the 3 m pair is not.
+    farm, ids = await _walk_three_blocks(http, barometer=True, baro_values=[10.0, 8.5, 7.0])
+    q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
+    asked = {frozenset((x["block_a_id"], x["block_b_id"])) for x in q["questions"]}
+    assert asked == {frozenset((ids[0], ids[1])), frozenset((ids[1], ids[2]))}
+
+    # Every block clearly apart: no questions at all (the page is skipped).
+    farm, ids = await _walk_three_blocks(http, barometer=True, baro_values=[12.0, 6.0, 0.0])
+    q = (await http.get(f"/farms/{farm['farm_id']}/elevation-questions")).json()
+    assert q["questions"] == []
+
+
+@pytest.mark.asyncio
+async def test_full_answers_on_a_flat_patch_order_the_blocks_as_the_farmer_says(client):
+    http, _ = client
+    farm, ids = await _walk_three_blocks(http, barometer=True, baro_values=[0.23, 0.0, -0.26])
+    # Farmer: block 3 highest, then 1, then 2 (opposite of the noisy readings).
+    answers = [
+        {"block_a_id": ids[0], "block_b_id": ids[1], "answer": "a_higher"},
+        {"block_a_id": ids[1], "block_b_id": ids[2], "answer": "b_higher"},
+        {"block_a_id": ids[0], "block_b_id": ids[2], "answer": "b_higher"},
+    ]
+    r = (await http.post(f"/farms/{farm['farm_id']}/resolve-elevation", json={"answers": answers})).json()
+    assert [r["ranks"][ids[2]], r["ranks"][ids[0]], r["ranks"][ids[1]]] == [1, 2, 3]
