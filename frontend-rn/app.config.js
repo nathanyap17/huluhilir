@@ -13,5 +13,17 @@ module.exports = ({ config }) => {
   if (process.env.ALLOW_CLEARTEXT === "1") {
     plugins.push(["expo-build-properties", { android: { usesCleartextTraffic: true } }]);
   }
-  return { ...config, plugins };
+
+  // Google Maps SDK for Android (live walk map, 2026-09-27). The key comes
+  // from the environment at build time -- set by release-apk.sh from the
+  // gitignored frontend-rn/maps-api.key -- and is never committed. It is
+  // restricted in Google Cloud to this package + signing certificate. With
+  // no key, the native map stays off (it crashes without one) and the walk
+  // falls back to the tile map / readout.
+  const mapsKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+  const android = mapsKey
+    ? { ...config.android, config: { ...(config.android?.config ?? {}), googleMaps: { apiKey: mapsKey } } }
+    : config.android;
+
+  return { ...config, plugins, android };
 };

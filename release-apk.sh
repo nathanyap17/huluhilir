@@ -44,7 +44,22 @@ mkdir -p "$SHORT"
 # robocopy exit codes below 8 mean success.
 MSYS_NO_PATHCONV=1 robocopy "$(cygpath -w "$FE")" "$(cygpath -w "$SHORT")" /E /NFL /NDL /NJH /NJS /NP \
   /XD "$(cygpath -w "$FE/android")" "$(cygpath -w "$FE/credentials")" .expo \
-  /XF credentials.json .env || [ $? -lt 8 ]
+  /XF credentials.json .env maps-api.key || [ $? -lt 8 ]
+
+echo "==> Google Maps key (live walk map)"
+# Never committed: read from the gitignored frontend-rn/maps-api.key, or the
+# GOOGLE_MAPS_ANDROID_API_KEY environment variable. Without it the build
+# still works; the walk just uses the fallback map. The key is restricted in
+# Google Cloud to this package + signing certificate.
+if [ -z "${GOOGLE_MAPS_ANDROID_API_KEY:-}" ] && [ -f "$FE/maps-api.key" ]; then
+  GOOGLE_MAPS_ANDROID_API_KEY="$(tr -d '[:space:]' < "$FE/maps-api.key")"
+fi
+if [ -n "${GOOGLE_MAPS_ANDROID_API_KEY:-}" ]; then
+  export GOOGLE_MAPS_ANDROID_API_KEY EXPO_PUBLIC_ENABLE_MAP=1
+  echo "  Google map ON (key found, not printed)"
+else
+  echo "  no key: Google map OFF, fallback map used"
+fi
 
 echo "==> expo prebuild (android)"
 ( cd "$SHORT" && EXPO_PUBLIC_API_BASE_URL="$API_URL" npx expo prebuild --platform android --no-install >/dev/null )

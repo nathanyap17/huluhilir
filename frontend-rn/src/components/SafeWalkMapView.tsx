@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { TileWalkMap } from "./TileWalkMap";
+import { SchematicWalkMap } from "./SchematicWalkMap";
 import type { WalkMapViewProps } from "./walkMapTypes";
 
 /**
@@ -42,8 +42,8 @@ if (MAP_ENABLED) {
 }
 
 export function SafeWalkMapView(props: WalkMapViewProps) {
-  // Default: the key-free OpenStreetMap tile map (what v1 used). The native
+  // Default: the offline schematic map (never blocked). The native
   // Google map only when explicitly enabled with a Maps key.
-  if (!WalkMapViewImpl) return <TileWalkMap {...props} />;
+  if (!WalkMapViewImpl) return <SchematicWalkMap {...props} />;
   return <WalkMapViewImpl {...props} />;
 }
