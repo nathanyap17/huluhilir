@@ -12,8 +12,9 @@ export const APK_PATH = '/pepperdex-latest.apk';
 export const APK_URL = `${SITE_URL}${APK_PATH}`;
 export const REPO_URL = 'https://github.com/nathanyap17/huluhilir';
 export const API_DOCS_URL = 'https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs';
-/// Empty until the video is published; the button shows as "coming soon".
-export const DEMO_VIDEO_URL = '';
+/// Project video on Google Drive (shared as "anyone with the link").
+/// Empty -> the button shows as "coming soon".
+export const DEMO_VIDEO_URL = 'https://drive.google.com/file/d/1KnQim72WxQmMTqc2YpbjHZuamJlWNzgY/view?usp=sharing';
 
 export const STATE = {
   protected: { label: 'Protected', colour: '#4F8A5B', rule: 'A confident healthy photo, or no risk reaching it' },

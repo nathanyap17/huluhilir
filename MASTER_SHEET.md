@@ -6,7 +6,7 @@
 > **Team:** SMILING FACE WITH SUNGLASSES, Universiti Malaysia Sarawak (UNIMAS): Nathan Yap Jia De (technical lead) · Zoe Tan An Xuen (deliverables) · Abraham Pang Exin (project management)
 > **Event:** AgroHack 2026, Sarawak AgroFest, Sibu, 25–27 September 2026
 > **Try it:** https://sfws-aicc-workspace-1.web.app/ (free Android app, "Try the demo farm") · Code: https://github.com/nathanyap17/huluhilir
-> **Status date:** 25 September 2026 (Android app build 20; backend live on Google Cloud Run)
+> **Status date:** 27 September 2026 (Android app build 23; backend live on Google Cloud Run)
 
 ### How to read the evidence labels
 
@@ -126,16 +126,16 @@ Basis: the team's review of publicly described features, September 2026 (*Pendin
 | **L0 Voice & language** | Make advice usable regardless of literacy | Text-to-speech in Bahasa Malaysia; farmers' spoken block names stored as audio and replayed | **No speech recognition** anywhere |
 | **L1 Diagnosis** | Spot early signs from a photo | MobileNetV3-Small image classifier, exported to ONNX, run on the server; 6 classes: healthy leaf, healthy collar, foliar yellowing, collar lesion, defoliation/wilt, unrelated | Unsure results (confidence < 60%) never lower a block's status; they prompt inspection |
 | **L2 Spread** | Project downhill risk and timing | Deterministic directed elevation graph (§3.3) | **Not machine learning**; the farmer's elevation answer overrides sensors |
-| **L3 Knowledge** | Decide *what* is allowed; explain *why* | A rules table of 6 treatments with rain-fast hours; 23 explanatory documents searched by meaning (sentence embeddings) plus keywords (full-text search) | Rules decide *what*; documents only explain *why* and cannot surface a dose |
+| **L3 Knowledge** | Decide *what* is allowed; explain *why* | A rules table of 6 treatments with rain-fast hours; 23 explanatory documents searched by meaning (sentence embeddings), plus a keyword boost (full-text search) in the offline SQLite build | Rules decide *what*; documents only explain *why* and cannot surface a dose |
 | **L4 Agents** | Arbitrate everything into one plan | Google Agent Development Kit: Router agent, Setup wizard, DiagnosisCoordinator, Advisor, and a 4-agent Overrun Council | Loop termination and safety checks are plain code, never AI judgement |
 
 ### 3.2 Setting up a farm: building the elevation graph (Built)
 
-1. **Walk and mark.** At each block the phone records GPS position (the median of several readings, to reject jitter), a photo, and the farmer's spoken name for the block.
+1. **Walk and mark.** At each block the phone records GPS position (the median of several readings over a 5-second capture, to reject jitter), a photo, the farmer's name for the block (typed, or spoken and stored as audio) and its drainage (good, fair or poor). On phones with a barometer it also records the median air pressure over the same 5 seconds. A live map shows the walked track and numbered block pins (Google Maps; an offline schematic map is drawn when the map is unavailable). No boundary is ever drawn or stored.
 2. **Rank by height.** Two paths:
    - *No barometer (minimal tier):* the farmer is asked "which is higher?" for **every pair** of blocks (6 blocks = 15 questions).
-   - *Barometer (optimised tier):* the phone's air-pressure sensor ranks blocks, and the farmer is asked only where two blocks differ by **less than 2.0 m**.
-   In both, **the farmer's answer always wins**; any disagreement with the sensor is logged, never silently resolved.
+   - *Barometer (optimised tier):* each block's height relative to the start of the walk is computed from the pressure readings, and the barometer sets the order. The farmer is asked about **every pair of blocks less than 2.0 m apart** (not only neighbouring pairs, since on flat ground the sensor's order is noise). If no pair is that close, the height questions are skipped entirely.
+   In both, **the farmer's answer always wins**: an answer moves only the pair it concerns, and any disagreement with the sensor is logged, never silently resolved.
 3. **Connect downhill.** Each block is linked to its **3 nearest neighbours**, keeping only links that run **downhill**. This guarantees the graph has no loops.
 4. **Weight each link** (how strongly water carries from block *i* to block *j*):
 
@@ -181,6 +181,16 @@ Within one diagnosis round, the worst result for a block wins, so a retake never
 
 **Spray window.** For a treatment with a rain-fast period of *h* hours, a forecast window is viable only if **no forecast point within those *h* hours carries ≥ 5 mm of rain**. If no window is viable, the treatment is **deferred** and drain clearing (no rain-fast period) goes first. The chosen day is converted to a practical field slot: a date-only time becomes 08:00, never sooner than the next full hour at least 30 minutes away, and within 07:00–17:00.
 
+**When to check next (the Advisor).** The Advisor's verdict on whether a check is due is plain code, not AI: *high* after ≥ 30 mm of rain in 48 hours (if the last round was ≥ 3 days ago) or when a block is Alerted or Harmed and the last round was ≥ 5 days ago (*medium* if sooner, to keep monitoring); *low* when every block is Protected, rain since the last round is < 20 mm and it was < 14 days ago; *medium* after 21 days. It also names the **next best check date**, in this order of priority:
+
+| Situation | Suggested check |
+|---|---|
+| A forecast day with ≥ 20 mm of rain | 2 days after that rain, when new infections show |
+| A treatment is scheduled | After its rain-fast period plus 3 days, so the treatment has time to act |
+| Otherwise (routine) | 5 days after the last round if a block is infected, 14 if all are Protected, 7 otherwise |
+
+A suggestion is never sooner than 3 days after the last round. The day-counts are design choices (*Design*); the farmer can always check sooner, because the Advisor recommends but never blocks a diagnosis.
+
 ### 3.4 How a diagnosis round runs (Built)
 
 1. The farmer photographs each block; **DiagnosisCoordinator** checks that each photo shows the right part (leaf or stem base) and asks for a retake if not. The farmer can override.
@@ -192,6 +202,7 @@ Within one diagnosis round, the worst result for a block wins, so a retake never
 7. The **Router agent** arbitrates into one plan per block.
 8. **Safety checks** run (§3.5); the plan becomes a **priority action**, a **live feed** of each step, and **Approve/Reject cards** for schedulable actions (spray, drench, clear drain).
 9. On Approve, the action is written to **Google Calendar** through the Model Context Protocol (MCP), for the one farm linked to a Google account. Otherwise it is kept in the app.
+10. Home refreshes: the priority action card (spoken aloud on tap), the Advisor's verdict and its next best check date.
 
 ### 3.5 Safety checks between the AI and the farmer (Built)
 
@@ -203,6 +214,7 @@ Within one diagnosis round, the worst result for a block wins, so a retake never
 | **Time limit and fallback** | Each AI turn is time-limited (60 s on the cloud deployment). On timeout or error, the plan is built from the rules table alone, and the app says so |
 | **Council schema wall** | The Overrun Council's output has no field for a product, dose or time, so it cannot prescribe even if the model tries |
 | **Advisor boundary** | The Advisor answers questions from a live snapshot of the farm and the documents; it may repeat the app's plan but never states a dose itself |
+| **Calendar ownership** | Only the one linked farm can reach Google Calendar, and only through an approved proposal card. The agents may read that calendar only when working for that farm; the calendar cannot be read, written, re-linked or unlinked directly through the public API |
 
 ### 3.6 Data sources
 
@@ -217,18 +229,19 @@ Within one diagnosis round, the worst result for a block wins, so a retake never
 
 | Part | Technology |
 |---|---|
-| App | React Native (Expo), Android 7+; GPS, barometer when present, 3D terrain view |
+| App | React Native (Expo SDK 57), Android 7+; GPS, barometer when present, live walk map (Google Maps SDK, offline fallback), 3D terrain view |
 | Backend | Python, FastAPI, Pydantic v2; one typed contract generates the app's API types |
 | Agents | Google Agent Development Kit (ADK) with LiteLLM |
 | Language model | **Gemini 2.5 Flash on Vertex AI** (cloud); **Qwen 2.5 14B via Ollama** (offline), switched by configuration only |
-| Retrieval | all-MiniLM-L6-v2 sentence embeddings + SQLite FTS5 keyword search |
+| Retrieval | all-MiniLM-L6-v2 sentence embeddings; SQLite FTS5 keyword boost in the offline build |
 | Database and files | Cloud SQL (PostgreSQL) in the cloud, SQLite offline; photos in Cloud Storage |
 | Calendar | Google Calendar through an MCP server; approval-gated writes |
-| Hosting | Google Cloud Run (backend, asia-southeast1); Firebase Hosting (landing page and APK) |
+| Hosting | Google Cloud Run (backend, asia-southeast1, one always-on instance); Firebase Hosting (landing page and APK at a fixed download address) |
+| Release | The APK is built and signed locally with the project's signing key (the build refuses to publish if the certificate differs), then published with its version and checksum |
 
 ### 3.8 Quality assurance (Built)
 
-- **93 automated backend tests pass** (spread, graph, scheduling, block status, rules guard, council schema, calendar ownership, restore codes, and more). Two further tests exercise the live AI model end to end and need a model running.
+- **107 automated backend tests pass** (spread, elevation graph and barometer questions, scheduling, next-check dates, block status, rules guard, council schema, calendar ownership and access, restore codes, demo snapshot and restore, and more; run 27 September 2026). Further tests exercise the live AI model end to end and need a model running.
 - The app is developed against the backend's generated type contract, so request and response shapes cannot silently drift.
 - Every tool call and every safety-check correction is logged per run (`tools_called`), giving a traceable record of how each recommendation was made.
 
@@ -282,11 +295,11 @@ official rules                                            entries the farmer app
 
 ### 5.1 Technical feasibility: what exists today (Built)
 
-- **Android app build 20**, publicly downloadable from the landing page; a pre-populated **demo farm** lets anyone try the full flow without walking a hillside.
+- **Android app build 23**, publicly downloadable from the landing page; a pre-populated **demo farm** lets anyone try the full flow without walking a hillside. Because every visitor shares it, the demo farm is **restored to a saved state every night at 03:00** (or on demand by the team), and any phone can leave it from Settings.
 - **Backend live on Google Cloud Run** with Cloud SQL, Gemini 2.5 Flash on Vertex AI, and the Google Calendar connection; a typical Advisor answer returned in about 19 seconds on the cloud deployment.
 - **Offline mode:** the same code runs on a laptop with an open-weight model, so the system does not depend on venue connectivity or a single AI provider.
-- **Automated tests:** 93 passing (§3.8).
-- **Farm portability:** a private restore code moves a farm to a new phone; there are no accounts or passwords.
+- **Automated tests:** 107 passing (§3.8).
+- **Farm portability:** a private restore code moves a farm to a new phone; there are no accounts or passwords, and Android app-data backup is switched off so a farm never moves without that code.
 
 ### 5.2 Operational and economic feasibility
 
@@ -407,11 +420,12 @@ Listed in one place so nothing is overstated.
 | # | Item | Current state | Action needed |
 |---|---|---|---|
 | 1 | **Treatment rules citations** | 5 of 6 rules carry `_verified_pending: true`: doses and timings were drafted from general agronomic guidance, not yet checked against specific MPB/DOA documents | Verify each rule and page reference with MPB/DOA before any field use or formal claim that rules are "from MPB/DOA" |
-| 2 | **Drainage rule source label** | The drainage rule's source text says "MPB/DOA field study", but the 24% figure comes from the India study [5] | Correct the `source_ref` in `backend/seed/rules.json` to [5] |
+| 2 | ~~Drainage rule source label~~ | **Resolved 27 September 2026:** the drainage rule now cites the India study [5] with its DOI, and existing databases are refreshed on start-up | — |
 | 3 | Sarawak-specific loss data | None found; Indian study used as indicative [5] | Seek MPB/DOA or UNIMAS data; measure in the pilot |
 | 4 | Spread model parameters | Engineering judgement, not calibrated | Calibrate on pilot outcomes (§4.4) |
 | 5 | Photo classifier | Trained on ~530 mostly generated images; not field-validated | Collect and label real Sarawak field photos; retrain |
 | 6 | Rainfall input | Estimated from forecast text; single location (Kuching); no gauge data | Match farms to nearest stations; add gauge data where available |
+| 6a | Barometer height gate | The 2.0 m threshold is the design default, not calibrated against real phone drift | Measure pressure drift on several phones in the pilot |
 | 7 | Competitor comparison | Team review of public descriptions | Re-confirm each tool's features before formal submission |
 | 8 | Iban language | Machine-translated speech, unverified | Native-speaker verification |
 | 9 | Business model | Proposed; no institutional agreement | Pilot discussions with DOA / MPB |
@@ -449,4 +463,4 @@ Listed in one place so nothing is overstated.
 4. Umpang, M. (2026, May 19). Sarawak still nation's largest pepper-producing region with 8,061 hectares cultivated. *Borneo Post*. https://www.theborneopost.com/2026/05/19/sarawak-still-nations-largest-pepper-producing-region-with-8061-hectares-cultivated/
 5. Bhat, S., Arunachalam, V., Paramesha, V., & Gaonkar, N. (2025). Quantifying the economic impact and management strategies for foot rot (*Phytophthora capsici* L.) disease on black pepper cultivation in West Coast India: Farm-level insights. *Plant Science Today, 12*(1). https://doi.org/10.14719/pst.6764
 
-*All references were checked against the publisher or news page on 25 September 2026. Technical claims marked (Built) were checked against the source code (`backend/app/tools/spread.py`, `graph.py`, `treatment.py`, `weather.py`, `scheduling.py`, `council.py`, `knowledge.py`; `backend/app/agent/runner.py`; `backend/seed/rules.json`) on the same date.*
+*All references were checked against the publisher or news page on 25 September 2026. Technical claims marked (Built) were checked against the source code (`backend/app/tools/spread.py`, `graph.py`, `treatment.py`, `weather.py`, `scheduling.py`, `council.py`, `knowledge.py`, `advisor.py`, `demo_snapshot.py`; `backend/app/agent/runner.py`; `backend/app/routers/setup.py`, `calendar.py`; `backend/seed/rules.json`) and the test suite on 27 September 2026.*

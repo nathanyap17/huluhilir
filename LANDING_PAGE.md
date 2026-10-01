@@ -194,7 +194,7 @@ The RootAgent defers the drench, orders drain clearing today, and schedules the 
 |---|---|
 | **GitHub repository** | `https://github.com/nathanyap17/huluhilir` (repo keeps its original name; README is PepperDex) |
 | **API documentation** | `https://huluhilir-api-mfrzixfqeq-as.a.run.app/docs` (same Cloud Run service, v2 contents) |
-| **Demo video** | *(link to be added when the video is published)* |
+| **Demo video** | https://drive.google.com/file/d/1KnQim72WxQmMTqc2YpbjHZuamJlWNzgY/view?usp=sharing (Google Drive, anyone with the link) |
 | **Download the Android app** | QR code + link to the latest `.apk` on this site (fixed name `pepperdex-latest.apk`). Android only; allow "install unknown apps" for the browser when prompted. |
 
 Site: `https://sfws-aicc-workspace-1.web.app/` — the same address printed on the bunting QR.
